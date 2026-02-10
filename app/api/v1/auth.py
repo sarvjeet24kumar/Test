@@ -8,6 +8,7 @@ from typing import Annotated, Optional
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, status, BackgroundTasks
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.session import get_db
@@ -21,10 +22,15 @@ from app.schemas.auth import (
     RefreshTokenRequest,
     VerifyEmailRequest,
     OTPResponse,
+    SignupRequest,
+    SignupResponse,
+    LogoutRequest,
 )
 from app.schemas.user import ChangePasswordRequest
 
 router = APIRouter()
+security = HTTPBearer(auto_error=True)
+
 
 
 @router.post("/login", response_model=LoginResponse)
@@ -44,6 +50,61 @@ async def login(
     """
     auth_service = AuthService(db)
     return await auth_service.login(data.email, data.password, tenant_id, background_tasks)
+
+
+@router.post("/signup", response_model=SignupResponse, status_code=status.HTTP_201_CREATED)
+async def signup(
+    data: SignupRequest,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    background_tasks: BackgroundTasks,
+    tenant_id: Annotated[Optional[UUID], Depends(get_tenant_id)] = None,
+):
+    """
+    Register a new user account.
+    
+    - **email**: User's email address
+    - **username**: Desired username (alphanumeric and underscore)
+    - **first_name**: User's first name
+    - **last_name**: User's last name
+    - **password**: Password (minimum 8 characters)
+    
+    Creates user with `is_email_verified=False` and sends verification email.
+    Requires `Tenant-ID` header.
+    """
+    auth_service = AuthService(db)
+    return await auth_service.signup(
+        email=data.email,
+        username=data.username,
+        first_name=data.first_name,
+        last_name=data.last_name,
+        password=data.password,
+        tenant_id=tenant_id,
+        background_tasks=background_tasks,
+    )
+
+
+@router.post("/logout", status_code=status.HTTP_200_OK)
+async def logout(
+    data: LogoutRequest,
+    current_user: Annotated[User, Depends(get_current_user)],
+    credentials: Annotated[HTTPAuthorizationCredentials, Depends(security)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """
+    Logout user by blacklisting both access and refresh tokens.
+    
+    - **refresh_token**: User's current refresh token
+    
+    Requires authentication. Access token is extracted from Authorization header.
+    Both tokens will be blacklisted and cannot be used again.
+    """
+    from fastapi.security import HTTPBearer
+    
+    auth_service = AuthService(db)
+    # Extract access token from Authorization header
+    access_token = credentials.credentials
+    await auth_service.logout(access_token, data.refresh_token)
+    return {"message": "Logged out successfully"}
 
 
 @router.post("/verify-email", status_code=status.HTTP_200_OK)

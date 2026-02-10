@@ -1,10 +1,10 @@
 """
 Authentication Service
 
-Handles user authentication, login, and email verification.
+Handles user authentication, login, signup, and email verification.
 """
 
-from datetime import timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Tuple, Optional
 from uuid import UUID
 
@@ -18,6 +18,7 @@ from app.core.security import (
     create_refresh_token,
     generate_otp,
     hash_password,
+    decode_token,
 )
 from app.exceptions import (
     UnauthorizedException,
@@ -26,12 +27,14 @@ from app.exceptions import (
     EmailNotVerifiedException,
     NotFoundException,
     ValidationException,
+    ConflictException,
 )
-from app.models.user import User
+from app.models.user import User, UserRole
 from app.models.tenant import Tenant
+from app.models.token_blacklist import BlacklistedToken
 from app.services.redis_service import RedisService
 from app.services.email_service import EmailService
-from app.schemas.auth import LoginResponse
+from app.schemas.auth import LoginResponse, SignupResponse
 
 
 from fastapi import BackgroundTasks
@@ -207,22 +210,163 @@ class AuthService:
 
         return True
 
-    async def refresh_tokens(
-        self, refresh_token: str
-    ) -> Tuple[str, str]:
+    async def signup(
+        self,
+        email: str,
+        username: str,
+        first_name: str,
+        last_name: str,
+        password: str,
+        tenant_id: Optional[UUID] = None,
+        background_tasks: Optional["BackgroundTasks"] = None,
+    ) -> SignupResponse:
         """
-        Refresh access and refresh tokens.
+        Register a new user with email verification.
         
         Args:
-            refresh_token: Current refresh token
+            email: User's email
+            username: Desired username
+            first_name: User's first name
+            last_name: User's last name
+            password: User's password
+            tenant_id: Tenant UUID (None for SuperAdmin)
+            background_tasks: Background tasks handler
         
         Returns:
-            Tuple of (new_access_token, new_refresh_token)
+            SignupResponse with user details
         
         Raises:
-            UnauthorizedException: If refresh token is invalid
+            ConflictException: If email or username already exists in tenant
+            NotFoundException: If tenant_id provided but tenant doesn't exist
         """
+        # Verify tenant exists if tenant_id provided
+        if tenant_id:
+            result = await self.db.execute(
+                select(Tenant).where(Tenant.id == tenant_id)
+            )
+            tenant = result.scalar_one_or_none()
+            if not tenant:
+                raise NotFoundException("Tenant not found")
+            if not tenant.is_active:
+                raise TenantInactiveException()
+
+        # Check if email already exists in this tenant
+        result = await self.db.execute(
+            select(User).where(
+                and_(
+                    User.email == email,
+                    User.tenant_id == tenant_id
+                )
+            )
+        )
+        if result.scalar_one_or_none():
+            raise ConflictException("Email already registered in this tenant")
+
+        # Check if username already exists in this tenant
+        result = await self.db.execute(
+            select(User).where(
+                and_(
+                    User.username == username,
+                    User.tenant_id == tenant_id
+                )
+            )
+        )
+        if result.scalar_one_or_none():
+            raise ConflictException("Username already taken in this tenant")
+
+        # Create user with is_email_verified=False
+        user = User(
+            email=email,
+            username=username,
+            first_name=first_name,
+            last_name=last_name,
+            password=hash_password(password),
+            tenant_id=tenant_id,
+            role=UserRole.USER,
+            is_email_verified=False,
+            is_active=True,
+        )
+        self.db.add(user)
+        await self.db.commit()
+        await self.db.refresh(user)
+
+        # Send verification email
+        await self.send_verification_otp(email, tenant_id, background_tasks)
+
+        return SignupResponse(
+            user_id=user.id,
+            email=user.email,
+            is_email_verified=user.is_email_verified,
+        )
+
+    async def logout(
+        self,
+        access_token: str,
+        refresh_token: str,
+    ) -> None:
+        """
+        Logout user by blacklisting both access and refresh tokens.
+        
+        Args:
+            access_token: User's access token
+            refresh_token: User's refresh token
+        
+        Raises:
+            UnauthorizedException: If tokens are invalid
+        """
+        from jose import JWTError
+
+        # Decode and validate access token
+        try:
+            access_payload = decode_token(access_token)
+        except JWTError:
+            raise UnauthorizedException("Invalid access token")
+
+        # Decode and validate refresh token
+        try:
+            refresh_payload = decode_token(refresh_token)
+        except JWTError:
+            raise UnauthorizedException("Invalid refresh token")
+
+        # Blacklist access token in Redis (short-lived, fast lookup)
+        access_jti = access_payload.get("jti")
+        access_exp = access_payload.get("exp")
+        if access_jti and access_exp:
+            # Calculate TTL: time until token expires
+            ttl = int(access_exp - datetime.now(timezone.utc).timestamp())
+            if ttl > 0:
+                await RedisService.blacklist_access_token(access_jti, ttl)
+
+        # Blacklist refresh token in database (long-lived, persistent)
+        refresh_jti = refresh_payload.get("jti")
+        refresh_exp = refresh_payload.get("exp")
+        user_id = refresh_payload.get("sub")
+        
+        if refresh_jti and refresh_exp:
+            # Check if already blacklisted
+            result = await self.db.execute(
+                select(BlacklistedToken).where(
+                    BlacklistedToken.token_id == refresh_jti
+                )
+            )
+            existing = result.scalar_one_or_none()
+            
+            if not existing:
+                # Convert exp timestamp to datetime
+                expires_at = datetime.fromtimestamp(refresh_payload["exp"], tz=timezone.utc)
+                
+                blacklisted = BlacklistedToken(
+                    token_id=refresh_jti,
+                    user_id=user_id,
+                    expires_at=expires_at,
+                )
+                self.db.add(blacklisted)
+                await self.db.commit()
+
+    async def refresh_tokens(self, refresh_token: str) -> Tuple[str, str]:
         from jose import jwt, JWTError
+        from uuid import UUID
+        from app.exceptions import UnauthorizedException
 
         try:
             payload = jwt.decode(
@@ -236,38 +380,33 @@ class AuthService:
         if payload.get("type") != "refresh":
             raise UnauthorizedException("Invalid token type")
 
-        # Check if token is blacklisted
+        # Check if refresh token is blacklisted
         token_id = payload.get("jti")
-        if await RedisService.is_token_blacklisted(token_id):
+        result = await self.db.execute(
+            select(BlacklistedToken).where(BlacklistedToken.token_id == token_id)
+        )
+        if result.scalar_one_or_none():
             raise UnauthorizedException("Token has been revoked")
 
         # Get user
         user_id = payload.get("sub")
-        result = await self.db.execute(
-            select(User).where(User.id == UUID(user_id))
-        )
+        result = await self.db.execute(select(User).where(User.id == UUID(user_id)))
         user = result.scalar_one_or_none()
 
         if not user or not user.is_active:
             raise UnauthorizedException("User not found or inactive")
 
-        # Blacklist old refresh token
-        # Calculate remaining TTL (but use a minimum of 1 day for safety)
-        await RedisService.blacklist_token(token_id, 60 * 60 * 24)
-
-        # Generate new tokens
+        # Generate new access token
         access_token = create_access_token(
             user_id=user.id,
             tenant_id=user.tenant_id,
             role=user.role.value,
             email=user.email,
         )
-        new_refresh_token = create_refresh_token(
-            user_id=user.id,
-            tenant_id=user.tenant_id,
-        )
 
-        return access_token, new_refresh_token
+        # Return the same refresh token
+        return access_token, refresh_token
+
 
     async def change_password(
         self, user: User, current_password: str, new_password: str

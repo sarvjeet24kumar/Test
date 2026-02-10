@@ -112,6 +112,21 @@ class RedisService:
         key = f"blacklist:{token_id}"
         return await client.exists(key) > 0
 
+    # Access Token Blacklist (for logout)
+    @classmethod
+    async def blacklist_access_token(cls, token_id: str, expire_seconds: int) -> None:
+        """Add access token to blacklist in Redis."""
+        client = await cls.get_token_client()
+        key = f"blacklist:access:{token_id}"
+        await client.setex(key, expire_seconds, "1")
+
+    @classmethod
+    async def is_access_token_blacklisted(cls, token_id: str) -> bool:
+        """Check if access token is blacklisted in Redis."""
+        client = await cls.get_token_client()
+        key = f"blacklist:access:{token_id}"
+        return await client.exists(key) > 0
+
     # Pub/Sub for WebSocket events
     @classmethod
     async def publish_event(cls, channel: str, message: str) -> None:
@@ -126,3 +141,4 @@ class RedisService:
         pubsub = client.pubsub()
         await pubsub.subscribe(*channels)
         return pubsub
+

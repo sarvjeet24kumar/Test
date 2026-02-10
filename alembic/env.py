@@ -14,8 +14,8 @@ from sqlalchemy.ext.asyncio import async_engine_from_config
 from alembic import context
 
 # Import app config and models
-from app.config import settings
-from app.database import Base
+from app.core.config import settings
+from app.models.base import Base
 from app.models import *  # noqa: Import all models for metadata
 
 # Alembic Config object

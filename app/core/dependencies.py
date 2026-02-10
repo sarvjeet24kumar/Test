@@ -27,6 +27,7 @@ from app.models.user import User, UserRole
 from app.models.tenant import Tenant
 from app.models.shopping_list import ShoppingList
 from app.models.shopping_list_member import ShoppingListMember, MemberRole
+from app.services.redis_service import RedisService
 
 
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
@@ -94,6 +95,11 @@ async def get_current_user(
     # Validate token type
     if payload.get("type") != "access":
         raise UnauthorizedException("Invalid token type")
+
+    # Check if access token is blacklisted (logged out)
+    token_id = payload.get("jti")
+    if token_id and await RedisService.is_access_token_blacklisted(token_id):
+        raise UnauthorizedException("Token has been revoked")
 
     # Get user
     user_id = payload.get("sub")
