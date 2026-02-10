@@ -154,10 +154,11 @@ class AuthService:
 
         # Store in Redis
         expire_seconds = settings.otp_expire_minutes * 60
-        await RedisService.store_otp(email, otp, expire_seconds)
+        await RedisService.store_otp(email, otp, expire_seconds, tenant_id)
 
         # Send email
         if background_tasks:
+            print(background_tasks)
             background_tasks.add_task(EmailService.send_otp_email, email, otp)
         else:
             await EmailService.send_otp_email(email, otp)
@@ -180,7 +181,7 @@ class AuthService:
             ValidationException: If OTP is invalid or expired
         """
         # Get stored OTP
-        stored_otp = await RedisService.get_otp(email)
+        stored_otp = await RedisService.get_otp(email, tenant_id)
 
         if not stored_otp:
             raise ValidationException("OTP has expired. Please request a new one.")
@@ -206,7 +207,7 @@ class AuthService:
         await self.db.commit()
 
         # Delete OTP from Redis
-        await RedisService.delete_otp(email)
+        await RedisService.delete_otp(email, tenant_id)
 
         return True
 

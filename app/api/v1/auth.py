@@ -71,6 +71,7 @@ async def signup(
     Creates user with `is_email_verified=False` and sends verification email.
     Requires `Tenant-ID` header.
     """
+    print(tenant_id)
     auth_service = AuthService(db)
     return await auth_service.signup(
         email=data.email,
@@ -148,7 +149,7 @@ async def refresh_tokens(
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
     """
-    Refresh access and refresh tokens.
+    Refresh access and refresh tokens.z
     
     - **refresh_token**: Current refresh token
     """

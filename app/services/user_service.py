@@ -6,7 +6,7 @@ Handles user management within a tenant (Tenant Admin operations).
 
 from typing import List, Optional
 from uuid import UUID
-
+from fastapi import Response,status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, and_, or_, func
 from sqlalchemy.exc import IntegrityError
@@ -119,7 +119,7 @@ class UserService:
         # Send verification OTP
         otp = generate_otp()
         expire_seconds = settings.otp_expire_minutes * 60
-        await RedisService.store_otp(user.email, otp, expire_seconds)
+        await RedisService.store_otp(user.email, otp, expire_seconds, user.tenant_id)
         
         if background_tasks:
             background_tasks.add_task(EmailService.send_otp_email, user.email, otp)
@@ -287,12 +287,13 @@ class UserService:
             raise ConflictException("Database integrity error: Unique constraint violation")
         return user
 
-    async def deactivate_user(self, user_id: UUID, requester: User) -> User:
+    async def deactivate_user(self, user_id: UUID, requester: User) -> Response:
         """
         Deactivate a user (soft delete).
         """
         user = await self.get_user(user_id, requester)
-        
+        if not user.is_active or user.deleted_at is not None:
+            raise ConflictException("User is already deactivated")
         if requester.id == user.id:
             raise ForbiddenException("You cannot deactivate your own account")
 
@@ -300,7 +301,7 @@ class UserService:
         user.deleted_at = func.now()
         await self.db.commit()
         await self.db.refresh(user)
-        return user
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
 
     async def resend_verification_otp(
         self, 
@@ -315,7 +316,7 @@ class UserService:
 
         otp = generate_otp()
         expire_seconds = settings.otp_expire_minutes * 60
-        await RedisService.store_otp(user.email, otp, expire_seconds)
+        await RedisService.store_otp(user.email, otp, expire_seconds,user.tenant_id)
         
         if background_tasks:
             background_tasks.add_task(EmailService.send_otp_email, user.email, otp)

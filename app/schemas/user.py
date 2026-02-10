@@ -7,7 +7,7 @@ Request and response schemas for user management.
 from datetime import datetime
 from typing import Optional
 from uuid import UUID
-from pydantic import BaseModel, Field, EmailStr
+from pydantic import BaseModel, Field, EmailStr, ConfigDict
 
 from app.models.user import UserRole
 
@@ -21,6 +21,20 @@ class UserBase(BaseModel):
     last_name: str = Field(..., min_length=1, max_length=100)
 
 
+class UserSignupRequest(UserBase):
+    password: str = Field(..., min_length=8, max_length=128)
+
+class UserResponse(BaseModel):
+    id: UUID
+    email: EmailStr
+    username: str
+    first_name: str
+    last_name: str
+    is_active: bool
+    is_email_verified: bool
+
+    model_config = ConfigDict(from_attributes=True)
+    
 class UserCreate(UserBase):
     """User creation schema."""
 
@@ -48,10 +62,8 @@ class UserResponse(UserBase):
     is_active: bool
     deleted_at: Optional[datetime] = None
     created_at: datetime
-    updated_at: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class UserWithTenantResponse(UserResponse):

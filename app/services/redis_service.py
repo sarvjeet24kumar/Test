@@ -6,7 +6,7 @@ Manages Redis connections and operations for tokens, OTP, and pub/sub.
 
 from typing import Optional
 import redis.asyncio as redis
-
+from uuid import UUID
 from app.core.config import settings
 
 
@@ -53,24 +53,24 @@ class RedisService:
 
     # OTP Operations
     @classmethod
-    async def store_otp(cls, email: str, otp: str, expire_seconds: int) -> None:
+    async def store_otp(cls, email: str, otp: str, expire_seconds: int,tenant_id:"UUID") -> None:
         """Store OTP for email verification."""
         client = await cls.get_token_client()
-        key = f"otp:{email}"
+        key = f"otp:{tenant_id}:{email}"
         await client.setex(key, expire_seconds, otp)
 
     @classmethod
-    async def get_otp(cls, email: str) -> Optional[str]:
+    async def get_otp(cls, email: str,tenant_id:"UUID") -> Optional[str]:
         """Get stored OTP for email."""
         client = await cls.get_token_client()
-        key = f"otp:{email}"
+        key = f"otp:{tenant_id}:{email}"
         return await client.get(key)
 
     @classmethod
-    async def delete_otp(cls, email: str) -> None:
+    async def delete_otp(cls, email: str,tenant_id:"UUID") -> None:
         """Delete OTP after successful verification."""
         client = await cls.get_token_client()
-        key = f"otp:{email}"
+        key = f"otp:{tenant_id}:{email}"
         await client.delete(key)
 
     # Invitation Token Operations
