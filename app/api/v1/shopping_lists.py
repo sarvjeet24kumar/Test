@@ -2,6 +2,7 @@
 Shopping List Endpoints
 
 CRUD operations for shopping lists and membership management.
+Permission matrix enforced via ListService.
 """
 
 from typing import Annotated, List
@@ -12,7 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.session import get_db
 from app.core.dependencies import get_current_verified_user, PaginationParams
-from app.models.user import User
+from app.models.user import User, UserRole
 from app.services.list_service import ListService
 from app.services.invitation_service import InvitationService
 from app.schemas.shopping_list import (
@@ -28,6 +29,7 @@ from app.schemas.shopping_list_member import (
     InviteResponse,
     RemoveMemberResponse,
     LeaveListResponse,
+    UpdateMemberPermissions,
 )
 from math import ceil
 from app.schemas.common import PaginatedResponse
@@ -52,6 +54,8 @@ async def create_shopping_list(
     """
     Create a new shopping list.
     
+    Allowed: Tenant Admin, User.
+    Blocked: Super Admin.
     The creating user becomes the Owner with full permissions.
     """
     list_service = ListService(db)
@@ -65,9 +69,11 @@ async def list_shopping_lists(
     pagination: Annotated[PaginationParams, Depends()],
 ):
     """
-    Get all shopping lists the user is a member of.
+    Get all shopping lists visible to the user.
     
-    Returns a summary with item and member counts.
+    - **Tenant Admin**: Sees all lists in their tenant.
+    - **User**: Sees only lists they are a member of.
+    - **Super Admin**: Blocked.
     """
     list_service = ListService(db)
     items, total = await list_service.get_user_lists(
@@ -92,7 +98,8 @@ async def get_shopping_list(
     """
     Get a shopping list with members and items.
     
-    User must be a member of the list.
+    Allowed: Tenant Admin (any list in tenant), Owner, Member.
+    Blocked: Super Admin, non-members.
     """
     list_service = ListService(db)
     shopping_list = await list_service.get_list(list_id, current_user)
@@ -148,7 +155,8 @@ async def update_shopping_list(
     """
     Update a shopping list.
     
-    **Owner only.**
+    Allowed: Tenant Admin, Owner.
+    Blocked: Super Admin, Member.
     """
     list_service = ListService(db)
     return await list_service.update_list(list_id, current_user, data)
@@ -163,7 +171,9 @@ async def delete_shopping_list(
     """
     Delete a shopping list.
     
-    **Owner only.** All items and memberships will be deleted.
+    Allowed: Tenant Admin, Owner.
+    Blocked: Super Admin, Member.
+    All items and memberships will be cascade deleted.
     """
     list_service = ListService(db)
     await list_service.delete_list(list_id, current_user)
@@ -179,7 +189,8 @@ async def list_members(
     """
     Get all members of a shopping list.
     
-    User must be a member of the list.
+    Allowed: Tenant Admin, Owner, Member.
+    Blocked: Super Admin, non-members.
     """
     list_service = ListService(db)
     members, total = await list_service.get_members(
@@ -193,6 +204,9 @@ async def list_members(
             username=m.user.username if m.user else "Unknown",
             email=m.user.email if m.user else "",
             role=m.role,
+            can_add_item=m.can_add_item,
+            can_update_item=m.can_update_item,
+            can_delete_item=m.can_delete_item,
             joined_at=m.joined_at,
         )
         for m in members
@@ -218,8 +232,8 @@ async def invite_member(
     """
     Invite a user to join the shopping list.
     
-    **Owner only.**
-    
+    Allowed: Tenant Admin, Owner.
+    Blocked: Super Admin, Member.
     An invitation email will be sent with accept/reject links.
     """
     invitation_service = InvitationService(db)
@@ -242,11 +256,46 @@ async def remove_member(
     """
     Remove a member from the shopping list.
     
-    **Owner only.** Cannot remove the owner.
+    Allowed: Tenant Admin, Owner.
+    Blocked: Super Admin, Member. Cannot remove the owner.
     """
     list_service = ListService(db)
     await list_service.remove_member(list_id, user_id, current_user)
     return RemoveMemberResponse()
+
+
+@router.patch(
+    "/{list_id}/members/{user_id}/permissions",
+    response_model=MemberResponse,
+)
+async def update_member_permissions(
+    list_id: UUID,
+    user_id: UUID,
+    data: UpdateMemberPermissions,
+    current_user: Annotated[User, Depends(get_current_verified_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """
+    Update a member's permission flags.
+    
+    Allowed: Tenant Admin, Owner.
+    Blocked: Super Admin, Member. Cannot change owner permissions.
+    """
+    list_service = ListService(db)
+    member = await list_service.update_member_permissions(
+        list_id, user_id, current_user, data
+    )
+    return MemberResponse(
+        id=member.id,
+        user_id=member.user_id,
+        username=member.user.username if member.user else "Unknown",
+        email=member.user.email if member.user else "",
+        role=member.role,
+        can_add_item=member.can_add_item,
+        can_update_item=member.can_update_item,
+        can_delete_item=member.can_delete_item,
+        joined_at=member.joined_at,
+    )
 
 
 @router.delete("/{list_id}/members/me", response_model=LeaveListResponse)
@@ -258,7 +307,7 @@ async def leave_list(
     """
     Leave a shopping list.
     
-    **Members only.** Owner cannot leave their own list.
+    Members only. Owner cannot leave their own list.
     """
     list_service = ListService(db)
     await list_service.leave_list(list_id, current_user)
@@ -285,7 +334,8 @@ async def add_item(
     """
     Add an item to a shopping list.
     
-    User must be a member of the list.
+    Allowed: Tenant Admin, Owner, Member (if can_add_item).
+    Blocked: Super Admin.
     """
     list_service = ListService(db)
     item = await list_service.add_item(list_id, current_user, data)
@@ -311,7 +361,8 @@ async def get_items(
     """
     Get all items in a shopping list.
     
-    User must be a member of the list.
+    Allowed: Tenant Admin, Owner, Member (if can_view).
+    Blocked: Super Admin.
     """
     list_service = ListService(db)
     items, total = await list_service.get_items(
@@ -339,4 +390,3 @@ async def get_items(
         size=pagination.size,
         pages=ceil(total / pagination.size) if total > 0 else 1,
     )
-

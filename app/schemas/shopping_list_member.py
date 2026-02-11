@@ -5,6 +5,7 @@ Request and response schemas for list membership management.
 """
 
 from datetime import datetime
+from typing import Optional
 from uuid import UUID
 from pydantic import BaseModel, Field, EmailStr
 
@@ -12,17 +13,28 @@ from app.models.shopping_list_member import MemberRole
 
 
 class MemberResponse(BaseModel):
-    """Member response schema."""
+    """Member response schema with permission flags."""
 
     id: UUID
     user_id: UUID
     username: str
     email: str
     role: MemberRole
+    can_add_item: bool = False
+    can_update_item: bool = False
+    can_delete_item: bool = False
     joined_at: datetime
 
     class Config:
         from_attributes = True
+
+
+class UpdateMemberPermissions(BaseModel):
+    """Schema for updating member permissions (Owner/Tenant Admin only)."""
+
+    can_add_item: Optional[bool] = None
+    can_update_item: Optional[bool] = None
+    can_delete_item: Optional[bool] = None
 
 
 class InviteRequest(BaseModel):

@@ -134,7 +134,7 @@ async def update_user(
     return await user_service.update_user(user_id, current_user, data)
 
 
-@router.delete("/{user_id}", response_model=UserResponse)
+@router.delete("/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def deactivate_user(
     user_id: UUID,
     current_user: Annotated[User, Depends(get_current_verified_user)],

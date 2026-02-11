@@ -217,7 +217,7 @@ class UserService:
         if tenant_id:
             # Tenant Admin view: Show all active users in their tenant
             filters.append(User.tenant_id == tenant_id)
-            filters.append(User.deleted_at.is_(None))
+            # filters.append(User.deleted_at.is_(None))
         else:
             # Super Admin view: Show all Tenant Admins globally (including deleted)
             filters.append(User.role == UserRole.TENANT_ADMIN)
@@ -266,10 +266,10 @@ class UserService:
             user.username = data.username
 
         # Administrative status updates
-        if data.is_active is not None:
+        if "is_active" in data.model_fields_set:
             user.is_active = data.is_active
         
-        if data.deleted_at is not None:
+        if "deleted_at" in data.model_fields_set:
             user.deleted_at = data.deleted_at
 
         try:

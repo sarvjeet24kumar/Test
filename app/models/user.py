@@ -56,10 +56,6 @@ class User(BaseModel):
         UniqueConstraint("tenant_id", "username", name="uq_users_tenant_username"),
         UniqueConstraint("tenant_id", "email", name="uq_users_tenant_email"),
         
-        # Global uniqueness for users without a tenant (Super Admins)
-        # Index("uq_users_global_username", "username", unique=True, postgresql_where="tenant_id IS NULL"),
-        # Index("uq_users_global_email", "email", unique=True, postgresql_where="tenant_id IS NULL"),
-        
         Index("idx_users_tenant_id", "tenant_id"),
     )
 

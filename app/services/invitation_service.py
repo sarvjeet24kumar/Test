@@ -19,7 +19,7 @@ from app.exceptions import (
     ValidationException,
     ConflictException,
 )
-from app.models.user import User
+from app.models.user import User, UserRole
 from app.models.shopping_list import ShoppingList
 from app.models.shopping_list_member import ShoppingListMember, MemberRole
 from app.services.redis_service import RedisService
@@ -58,6 +58,10 @@ class InvitationService:
             ConflictException: If user already a member
             ValidationException: If inviting user from different tenant
         """
+        # Block Super Admin
+        if inviter.role == UserRole.SUPER_ADMIN:
+            raise ForbiddenException("Super Admin cannot access shopping list operations")
+
         # Get shopping list
         result = await self.db.execute(
             select(ShoppingList).where(ShoppingList.id == list_id)
@@ -71,9 +75,9 @@ class InvitationService:
         if shopping_list.tenant_id != inviter.tenant_id:
             raise ForbiddenException("Cross-tenant access denied")
 
-        # Verify inviter is owner
-        if shopping_list.owner_id != inviter.id:
-            raise ForbiddenException("Only the list owner can send invitations")
+        # Verify inviter is owner or tenant admin
+        if inviter.role != UserRole.TENANT_ADMIN and shopping_list.owner_id != inviter.id:
+            raise ForbiddenException("Only the list owner or tenant admin can send invitations")
 
         # Find invitee user
         result = await self.db.execute(
