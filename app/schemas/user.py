@@ -9,7 +9,7 @@ from typing import Optional
 from uuid import UUID
 from pydantic import BaseModel, Field, EmailStr, ConfigDict
 
-from app.models.user import UserRole
+from app.common.enums import UserRole
 
 
 class UserBase(BaseModel):

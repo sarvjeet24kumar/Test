@@ -1,7 +1,8 @@
 """
 Authentication Endpoints
 
-Handles login, logout, email verification, and token refresh.
+Handles login, logout, email verification, token refresh,
+forgot/reset password, and change password.
 """
 
 from typing import Annotated, Optional
@@ -13,7 +14,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.session import get_db
 from app.core.dependencies import get_current_user, get_tenant_id
-from app.models.user import User, UserRole
+from app.core.responses import success_response
+from app.models.user import User
 from app.services.auth_service import AuthService
 from app.schemas.auth import (
     LoginRequest,
@@ -25,15 +27,21 @@ from app.schemas.auth import (
     SignupRequest,
     SignupResponse,
     LogoutRequest,
+    PasswordResetRequest,
+    PasswordResetConfirm,
 )
-from app.schemas.user import ChangePasswordRequest
+from app.schemas.user import ChangePasswordRequest, UserProfileResponse
+from app.schemas.common import ResponseEnvelope, MessageResponse
 
 router = APIRouter()
 security = HTTPBearer(auto_error=True)
 
 
-
-@router.post("/login", response_model=LoginResponse)
+@router.post(
+    "/login",
+    response_model=ResponseEnvelope[LoginResponse],
+    status_code=status.HTTP_200_OK,
+)
 async def login(
     data: LoginRequest,
     db: Annotated[AsyncSession, Depends(get_db)],
@@ -42,17 +50,22 @@ async def login(
 ):
     """
     Authenticate user and return JWT tokens.
-    
-    - **email**: User's email address
-    - **password**: User's password
-    
-    Returns access and refresh tokens on success.
     """
     auth_service = AuthService(db)
-    return await auth_service.login(data.email, data.password, tenant_id, background_tasks)
+    result = await auth_service.login(data.email, data.password, tenant_id, background_tasks)
+    return success_response({
+        "access_token": result.access_token,
+        "refresh_token": result.refresh_token,
+        "token_type": result.token_type,
+        "expires_in": result.expires_in,
+    })
 
 
-@router.post("/signup", response_model=SignupResponse, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/signup",
+    response_model=ResponseEnvelope[SignupResponse],
+    status_code=status.HTTP_201_CREATED,
+)
 async def signup(
     data: SignupRequest,
     db: Annotated[AsyncSession, Depends(get_db)],
@@ -61,19 +74,9 @@ async def signup(
 ):
     """
     Register a new user account.
-    
-    - **email**: User's email address
-    - **username**: Desired username (alphanumeric and underscore)
-    - **first_name**: User's first name
-    - **last_name**: User's last name
-    - **password**: Password (minimum 8 characters)
-    
-    Creates user with `is_email_verified=False` and sends verification email.
-    Requires `Tenant-ID` header.
     """
-    print(tenant_id)
     auth_service = AuthService(db)
-    return await auth_service.signup(
+    result = await auth_service.signup(
         email=data.email,
         username=data.username,
         first_name=data.first_name,
@@ -82,9 +85,19 @@ async def signup(
         tenant_id=tenant_id,
         background_tasks=background_tasks,
     )
+    return success_response({
+        "message": result.message,
+        "user_id": result.user_id,
+        "email": result.email,
+        "is_email_verified": result.is_email_verified,
+    })
 
 
-@router.post("/logout", status_code=status.HTTP_200_OK)
+@router.post(
+    "/logout",
+    response_model=ResponseEnvelope[MessageResponse],
+    status_code=status.HTTP_200_OK,
+)
 async def logout(
     data: LogoutRequest,
     current_user: Annotated[User, Depends(get_current_user)],
@@ -93,22 +106,18 @@ async def logout(
 ):
     """
     Logout user by blacklisting both access and refresh tokens.
-    
-    - **refresh_token**: User's current refresh token
-    
-    Requires authentication. Access token is extracted from Authorization header.
-    Both tokens will be blacklisted and cannot be used again.
     """
-    from fastapi.security import HTTPBearer
-    
     auth_service = AuthService(db)
-    # Extract access token from Authorization header
     access_token = credentials.credentials
     await auth_service.logout(access_token, data.refresh_token)
-    return {"message": "Logged out successfully"}
+    return success_response({"message": "Logged out successfully"})
 
 
-@router.post("/verify-email", status_code=status.HTTP_200_OK)
+@router.post(
+    "/verify-email",
+    response_model=ResponseEnvelope[MessageResponse],
+    status_code=status.HTTP_200_OK,
+)
 async def verify_email(
     data: VerifyEmailRequest,
     db: Annotated[AsyncSession, Depends(get_db)],
@@ -116,16 +125,17 @@ async def verify_email(
 ):
     """
     Verify email address using OTP.
-    
-    - **email**: User's email address
-    - **otp**: 6-digit OTP code received via email
     """
     auth_service = AuthService(db)
     await auth_service.verify_email(data.email, data.otp, tenant_id)
-    return {"message": "Email verified successfully"}
+    return success_response({"message": "Email verified successfully"})
 
 
-@router.post("/resend-otp", response_model=OTPResponse)
+@router.post(
+    "/resend-otp",
+    response_model=ResponseEnvelope[OTPResponse],
+    status_code=status.HTTP_200_OK,
+)
 async def resend_otp(
     data: ResendOtpRequest,
     db: Annotated[AsyncSession, Depends(get_db)],
@@ -134,36 +144,44 @@ async def resend_otp(
 ):
     """
     Resend OTP for email verification.
-    
-    - **email**: User's email address
     """
     auth_service = AuthService(db)
     await auth_service.send_verification_otp(data.email, tenant_id, background_tasks)
     from app.core.config import settings
-    return OTPResponse(expires_in=settings.otp_expire_minutes * 60)
+    return success_response({
+        "message": "OTP sent successfully",
+        "expires_in": settings.otp_expire_minutes * 60,
+    })
 
 
-@router.post("/refresh", response_model=LoginResponse)
+@router.post(
+    "/refresh",
+    response_model=ResponseEnvelope[LoginResponse],
+    status_code=status.HTTP_200_OK,
+)
 async def refresh_tokens(
     data: RefreshTokenRequest,
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
     """
-    Refresh access and refresh tokens.z
-    
-    - **refresh_token**: Current refresh token
+    Refresh access and refresh tokens.
     """
     auth_service = AuthService(db)
     access_token, refresh_token = await auth_service.refresh_tokens(data.refresh_token)
     from app.core.config import settings
-    return LoginResponse(
-        access_token=access_token,
-        refresh_token=refresh_token,
-        expires_in=settings.jwt_access_token_expire_minutes * 60,
-    )
+    return success_response({
+        "access_token": access_token,
+        "refresh_token": refresh_token,
+        "token_type": "Bearer",
+        "expires_in": settings.jwt_access_token_expire_minutes * 60,
+    })
 
 
-@router.post("/change-password", status_code=status.HTTP_200_OK)
+@router.post(
+    "/change-password",
+    response_model=ResponseEnvelope[MessageResponse],
+    status_code=status.HTTP_200_OK,
+)
 async def change_password(
     data: ChangePasswordRequest,
     current_user: Annotated[User, Depends(get_current_user)],
@@ -171,24 +189,66 @@ async def change_password(
 ):
     """
     Change current user's password.
-    
     Requires authentication.
     """
     auth_service = AuthService(db)
     await auth_service.change_password(
         current_user, data.current_password, data.new_password
     )
-    return {"message": "Password changed successfully"}
+    return success_response({"message": "Password changed successfully"})
 
 
-@router.get("/me")
+@router.post(
+    "/forgot-password",
+    response_model=ResponseEnvelope[MessageResponse],
+    status_code=status.HTTP_200_OK,
+)
+async def forgot_password(
+    data: PasswordResetRequest,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    background_tasks: BackgroundTasks,
+    tenant_id: Annotated[Optional[UUID], Depends(get_tenant_id)] = None,
+):
+    """
+    Request a password reset link via email.
+    Always returns success to prevent email enumeration.
+    """
+    auth_service = AuthService(db)
+    await auth_service.forgot_password(data.email, tenant_id, background_tasks)
+    return success_response({
+        "message": "If an account with that email exists, a password reset link has been sent."
+    })
+
+
+@router.post(
+    "/reset-password",
+    response_model=ResponseEnvelope[MessageResponse],
+    status_code=status.HTTP_200_OK,
+)
+async def reset_password(
+    data: PasswordResetConfirm,
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """
+    Reset password using a valid reset token.
+    Token is single-use and expires in 15 minutes.
+    """
+    auth_service = AuthService(db)
+    await auth_service.reset_password(data.token, data.new_password, data.confirm_password)
+    return success_response({"message": "Password has been reset successfully"})
+
+
+@router.get(
+    "/me",
+    response_model=ResponseEnvelope[UserProfileResponse],
+    status_code=status.HTTP_200_OK,
+)
 async def get_current_user_profile(
     current_user: Annotated[User, Depends(get_current_user)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
     """
     Get current user's profile.
-    
     Requires authentication.
     """
     from sqlalchemy import select
@@ -205,13 +265,13 @@ async def get_current_user_profile(
         else:
             tenant_name = "Deleted Tenant"
     
-    return {
-        "id": current_user.id,
+    return success_response({
+        "id": str(current_user.id),
         "email": current_user.email,
         "username": current_user.username,
-        "tenant_id": current_user.tenant_id,
+        "tenant_id": str(current_user.tenant_id) if current_user.tenant_id else None,
         "tenant_name": tenant_name,
-        "role": current_user.role,
+        "role": current_user.role.value,
         "is_email_verified": current_user.is_email_verified,
-        "created_at": current_user.created_at,
-    }
+        "created_at": current_user.created_at.isoformat(),
+    })

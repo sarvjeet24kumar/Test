@@ -11,6 +11,7 @@ from sqlalchemy import String, Boolean
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import BaseModel
+from app.common.constants import MAX_LENGTH_NAME, MAX_LENGTH_SLUG
 
 if TYPE_CHECKING:
     from app.models.user import User
@@ -32,8 +33,8 @@ class Tenant(BaseModel):
 
     __tablename__ = "tenants"
 
-    name: Mapped[str] = mapped_column(String(255), nullable=False)
-    slug: Mapped[str] = mapped_column(String(100), unique=True, nullable=False, index=True)
+    name: Mapped[str] = mapped_column(String(MAX_LENGTH_NAME), nullable=False)
+    slug: Mapped[str] = mapped_column(String(MAX_LENGTH_SLUG), unique=True, nullable=False, index=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
 
     # Relationships

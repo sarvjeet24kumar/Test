@@ -194,3 +194,50 @@ The MiniMart Team
         """.strip()
 
         return await cls.send_email(to_email, subject, body, html_body)
+
+    @classmethod
+    async def send_password_reset_email(cls, to_email: str, reset_url: str) -> bool:
+        """
+        Send password reset email with a reset link.
+        """
+        subject = "Reset Your MiniMart Password"
+        body = f"""
+Hello,
+
+You requested a password reset. Click the link below to reset your password:
+
+{reset_url}
+
+This link will expire in 15 minutes.
+
+If you didn't request this, please ignore this email.
+
+Best regards,
+The MiniMart Team
+        """.strip()
+
+        html_body = f"""
+<!DOCTYPE html>
+<html>
+<head>
+    <style>
+        .container {{ font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; }}
+        .button {{ display: inline-block; padding: 12px 24px; background: #4F46E5; color: white; border-radius: 6px; text-decoration: none; font-weight: bold; }}
+        .footer {{ color: #6B7280; font-size: 14px; margin-top: 20px; }}
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Reset Your Password</h1>
+        <p>You requested a password reset for your MiniMart account.</p>
+        <div style="text-align: center; margin: 30px 0;">
+            <a href="{reset_url}" class="button">Reset Password</a>
+        </div>
+        <p>This link will expire in 15 minutes.</p>
+        <p class="footer">If you didn't request this, please ignore this email.</p>
+    </div>
+</body>
+</html>
+        """.strip()
+
+        return await cls.send_email(to_email, subject, body, html_body)

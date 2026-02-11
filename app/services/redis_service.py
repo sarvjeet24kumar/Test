@@ -142,3 +142,27 @@ class RedisService:
         await pubsub.subscribe(*channels)
         return pubsub
 
+    # Password Reset Token Operations
+    @classmethod
+    async def store_password_reset_jti(
+        cls, jti: str, user_id: str, expire_seconds: int = 900
+    ) -> None:
+        """Store password reset JTI for single-use validation (default 15 min)."""
+        client = await cls.get_token_client()
+        key = f"password_reset:{jti}"
+        await client.setex(key, expire_seconds, user_id)
+
+    @classmethod
+    async def validate_password_reset_jti(cls, jti: str) -> Optional[str]:
+        """Check if password reset JTI exists. Returns user_id or None."""
+        client = await cls.get_token_client()
+        key = f"password_reset:{jti}"
+        return await client.get(key)
+
+    @classmethod
+    async def delete_password_reset_jti(cls, jti: str) -> None:
+        """Delete password reset JTI after use."""
+        client = await cls.get_token_client()
+        key = f"password_reset:{jti}"
+        await client.delete(key)
+

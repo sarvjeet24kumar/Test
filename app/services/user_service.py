@@ -14,14 +14,18 @@ from sqlalchemy.exc import IntegrityError
 from app.core.security import hash_password, generate_otp
 from app.exceptions import NotFoundException, ConflictException, ForbiddenException
 from app.models.tenant import Tenant
-from app.models.user import User, UserRole
+from app.models.user import User
 from app.schemas.user import UserCreate, UserUpdate
 from app.services.redis_service import RedisService
 from app.services.email_service import EmailService
 from app.core.config import settings
+from app.common.enums import UserRole
+from app.core.logging import get_logger
 
+logger = get_logger(__name__)
 
 from fastapi import BackgroundTasks
+
 
 class UserService:
     """Service for user management operations."""

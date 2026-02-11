@@ -6,28 +6,17 @@ Represents user notifications for various events.
 
 from typing import TYPE_CHECKING, Optional, Dict, Any
 import uuid
-import enum
 
 from sqlalchemy import ForeignKey, Index, Boolean
 from sqlalchemy.dialects.postgresql import UUID, ENUM, JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import BaseModel
+from app.common.enums import NotificationType
 
 if TYPE_CHECKING:
     from app.models.user import User
     from app.models.shopping_list import ShoppingList
-
-
-class NotificationType(str, enum.Enum):
-    """Types of notifications."""
-
-    LIST_INVITE = "LIST_INVITE"
-    INVITE_ACCEPTED = "INVITE_ACCEPTED"
-    INVITE_REJECTED = "INVITE_REJECTED"
-    ITEM_ADDED = "ITEM_ADDED"
-    ITEM_PURCHASED = "ITEM_PURCHASED"
-    CHAT_MESSAGE = "CHAT_MESSAGE"
 
 
 class Notification(BaseModel):

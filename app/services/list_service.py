@@ -20,12 +20,28 @@ from sqlalchemy.orm import selectinload
 
 from app.exceptions import NotFoundException, ForbiddenException
 from app.models.shopping_list import ShoppingList
-from app.models.shopping_list_member import ShoppingListMember, MemberRole
-from app.models.item import Item, ItemStatus
-from app.models.user import User, UserRole
+from app.models.shopping_list_member import ShoppingListMember
+from app.models.item import Item
+from app.models.user import User
 from app.schemas.shopping_list import ShoppingListCreate, ShoppingListUpdate
 from app.schemas.item import ItemCreate, ItemUpdate
 from app.services.redis_service import RedisService
+from app.common.enums import UserRole, MemberRole, ItemStatus
+from app.common.constants import (
+    WS_EVENT_ITEM_ADDED,
+    WS_EVENT_ITEM_UPDATED,
+    WS_EVENT_ITEM_DELETED,
+    WS_EVENT_MEMBER_REMOVED,
+    WS_EVENT_MEMBER_LEFT,
+    WS_EVENT_LIST_UPDATED,
+    WS_EVENT_LIST_DELETED,
+    WS_EVENT_PERMISSIONS_UPDATED,
+    REDIS_CHANNEL_LIST,
+    DEFAULT_PAGE_SIZE,
+)
+from app.core.logging import get_logger
+
+logger = get_logger(__name__)
 
 
 class ListService:
@@ -83,7 +99,6 @@ class ListService:
 
         # Tenant Admin: full access to any list in their tenant
         if user.role == UserRole.TENANT_ADMIN:
-            # Find their membership if they happen to be a member, else None
             membership = next(
                 (m for m in shopping_list.members if m.user_id == user.id), None
             )
@@ -135,6 +150,7 @@ class ListService:
         await self.db.commit()
         await self.db.refresh(shopping_list)
 
+        logger.info("Shopping list created: list_id=%s", shopping_list.id)
         return shopping_list
 
     async def get_list(
@@ -149,7 +165,7 @@ class ListService:
         return shopping_list
 
     async def get_user_lists(
-        self, user: User, skip: int = 0, limit: int = 100
+        self, user: User, skip: int = 0, limit: int = DEFAULT_PAGE_SIZE
     ) -> tuple[List[dict], int]:
         """
         Get shopping lists visible to the user.
@@ -159,7 +175,6 @@ class ListService:
         self._block_super_admin(user)
 
         if user.role == UserRole.TENANT_ADMIN:
-            # Tenant Admin sees all lists in their tenant
             count_result = await self.db.execute(
                 select(func.count()).select_from(ShoppingList).where(
                     ShoppingList.tenant_id == user.tenant_id
@@ -181,14 +196,13 @@ class ListService:
 
             lists = []
             for shopping_list in shopping_lists:
-                # Check if admin is a member to get their role
                 admin_membership = next(
                     (m for m in shopping_list.members if m.user_id == user.id), None
                 )
                 lists.append({
                     "id": shopping_list.id,
                     "name": shopping_list.name,
-                    "role": admin_membership.role.value if admin_membership else "ADMIN",
+                    "role": admin_membership.role.value if admin_membership else UserRole.TENANT_ADMIN.value,
                     "item_count": len(shopping_list.items),
                     "member_count": len(shopping_list.members),
                     "created_at": shopping_list.created_at,
@@ -196,7 +210,6 @@ class ListService:
 
             return lists, total
         else:
-            # Regular users: only their memberships
             count_result = await self.db.execute(
                 select(func.count()).where(ShoppingListMember.user_id == user.id)
             )
@@ -246,6 +259,19 @@ class ListService:
 
         await self.db.commit()
         await self.db.refresh(shopping_list)
+
+        logger.info("Shopping list updated: list_id=%s", list_id)
+
+        # Broadcast real-time update
+        await self._publish_event(
+            list_id,
+            WS_EVENT_LIST_UPDATED,
+            {
+                "id": str(shopping_list.id),
+                "name": shopping_list.name,
+            },
+        )
+
         return shopping_list
 
     async def delete_list(self, list_id: UUID, user: User) -> bool:
@@ -259,12 +285,22 @@ class ListService:
 
         await self.db.delete(shopping_list)
         await self.db.commit()
+
+        logger.info("Shopping list deleted: list_id=%s", list_id)
+
+        # Broadcast real-time deletion
+        await self._publish_event(
+            list_id,
+            WS_EVENT_LIST_DELETED,
+            {"id": str(list_id)},
+        )
+
         return True
 
     # ==================== Member Operations ====================
 
     async def get_members(
-        self, list_id: UUID, user: User, skip: int = 0, limit: int = 100
+        self, list_id: UUID, user: User, skip: int = 0, limit: int = DEFAULT_PAGE_SIZE
     ) -> tuple[List[ShoppingListMember], int]:
         """
         Get all members of a shopping list.
@@ -302,7 +338,6 @@ class ListService:
         if member_user_id == shopping_list.owner_id:
             raise ForbiddenException("Cannot remove the owner from the list")
 
-        # Find and remove membership
         result = await self.db.execute(
             select(ShoppingListMember).where(
                 and_(
@@ -319,10 +354,11 @@ class ListService:
         await self.db.delete(membership)
         await self.db.commit()
 
-        # Publish event for WebSocket disconnection
+        logger.info("Member removed from list: list_id=%s", list_id)
+
         await self._publish_event(
             list_id,
-            "member_removed",
+            WS_EVENT_MEMBER_REMOVED,
             {"user_id": str(member_user_id)},
         )
 
@@ -337,7 +373,6 @@ class ListService:
         if shopping_list.owner_id == user.id:
             raise ForbiddenException("Owner cannot leave their own list")
 
-        # Find and remove membership
         result = await self.db.execute(
             select(ShoppingListMember).where(
                 and_(
@@ -352,10 +387,11 @@ class ListService:
             await self.db.delete(membership)
             await self.db.commit()
 
-            # Publish event
+            logger.info("Member left list: list_id=%s", list_id)
+
             await self._publish_event(
                 list_id,
-                "member_left",
+                WS_EVENT_MEMBER_LEFT,
                 {"user_id": str(user.id)},
             )
 
@@ -380,7 +416,6 @@ class ListService:
         if member_user_id == shopping_list.owner_id:
             raise ForbiddenException("Cannot modify the owner's permissions")
 
-        # Find membership
         result = await self.db.execute(
             select(ShoppingListMember)
             .options(selectinload(ShoppingListMember.user))
@@ -396,7 +431,6 @@ class ListService:
         if not membership:
             raise NotFoundException("Member not found")
 
-        # Update permission flags
         if data.can_add_item is not None:
             membership.can_add_item = data.can_add_item
         if data.can_update_item is not None:
@@ -406,6 +440,20 @@ class ListService:
 
         await self.db.commit()
         await self.db.refresh(membership)
+
+        logger.info("Permissions updated: list_id=%s member=%s", list_id, member_user_id)
+
+        # Broadcast real-time permission update
+        await self._publish_event(
+            list_id,
+            WS_EVENT_PERMISSIONS_UPDATED,
+            {
+                "user_id": str(member_user_id),
+                "can_add_item": membership.can_add_item,
+                "can_update_item": membership.can_update_item,
+                "can_delete_item": membership.can_delete_item,
+            },
+        )
 
         return membership
 
@@ -419,29 +467,18 @@ class ListService:
 
         Tenant Admin and Owner always have full item permissions.
         Members are governed by permission flags on their membership.
-
-        Args:
-            user: Requesting user
-            membership: User's membership (None for Tenant Admin without membership)
-            permission: One of 'can_add_item', 'can_update_item', 'can_delete_item', 'can_view'
         """
-        # Tenant Admin always allowed
         if user.role == UserRole.TENANT_ADMIN:
             return
 
-        # Must have membership at this point
         if not membership:
             raise ForbiddenException("You are not a member of this list")
 
-        # Owner always allowed
         if membership.role == MemberRole.OWNER:
             return
 
-        # Member: check the specific permission flag
         if not getattr(membership, permission, False):
-            raise ForbiddenException(
-                f"You don't have permission to perform this action"
-            )
+            raise ForbiddenException("You don't have permission to perform this action")
 
     async def add_item(
         self, list_id: UUID, user: User, data: ItemCreate
@@ -464,10 +501,11 @@ class ListService:
         await self.db.commit()
         await self.db.refresh(item)
 
-        # Publish event
+        logger.info("Item added: item_id=%s list_id=%s", item.id, list_id)
+
         await self._publish_event(
             list_id,
-            "item_added",
+            WS_EVENT_ITEM_ADDED,
             {
                 "id": str(item.id),
                 "name": item.name,
@@ -480,7 +518,7 @@ class ListService:
         return item
 
     async def get_items(
-        self, list_id: UUID, user: User, skip: int = 0, limit: int = 100
+        self, list_id: UUID, user: User, skip: int = 0, limit: int = DEFAULT_PAGE_SIZE
     ) -> tuple[List[Item], int]:
         """
         Get all items in a shopping list.
@@ -505,11 +543,35 @@ class ListService:
 
         return items, total
 
+    async def get_item(
+        self, list_id: UUID, item_id: UUID, user: User
+    ) -> Item:
+        """
+        Get a specific item ensuring it belongs to the given list.
+        """
+        self._block_super_admin(user)
+
+        result = await self.db.execute(
+            select(Item).where(Item.id == item_id)
+        )
+        item = result.scalar_one_or_none()
+
+        if not item:
+            raise NotFoundException("Item not found")
+
+        if item.shopping_list_id != list_id:
+            raise NotFoundException("Item not found in this list")
+
+        shopping_list, membership = await self._get_list_with_access(list_id, user)
+        self._check_item_permission(user, membership, "can_view")
+
+        return item
+
     async def update_item(
         self, item_id: UUID, user: User, data: ItemUpdate
     ) -> Item:
         """
-        Update an item.
+        Update an item (standalone — no list-scope validation).
         Allowed: Tenant Admin, Owner, Member (if can_update_item). Blocked: Super Admin.
         """
         self._block_super_admin(user)
@@ -522,7 +584,6 @@ class ListService:
         if not item:
             raise NotFoundException("Item not found")
 
-        # Verify list access and item permission
         shopping_list, membership = await self._get_list_with_access(
             item.shopping_list_id, user
         )
@@ -538,10 +599,11 @@ class ListService:
         await self.db.commit()
         await self.db.refresh(item)
 
-        # Publish event
+        logger.info("Item updated: item_id=%s", item.id)
+
         await self._publish_event(
             item.shopping_list_id,
-            "item_updated",
+            WS_EVENT_ITEM_UPDATED,
             {
                 "id": str(item.id),
                 "name": item.name,
@@ -554,7 +616,7 @@ class ListService:
 
     async def delete_item(self, item_id: UUID, user: User) -> bool:
         """
-        Delete an item.
+        Delete an item (standalone — no list-scope validation).
         Allowed: Tenant Admin, Owner, Member (if can_delete_item). Blocked: Super Admin.
         """
         self._block_super_admin(user)
@@ -567,7 +629,6 @@ class ListService:
         if not item:
             raise NotFoundException("Item not found")
 
-        # Verify list access and item permission
         list_id = item.shopping_list_id
         shopping_list, membership = await self._get_list_with_access(list_id, user)
         self._check_item_permission(user, membership, "can_delete_item")
@@ -575,10 +636,93 @@ class ListService:
         await self.db.delete(item)
         await self.db.commit()
 
-        # Publish event
+        logger.info("Item deleted: item_id=%s list_id=%s", item_id, list_id)
+
         await self._publish_event(
             list_id,
-            "item_deleted",
+            WS_EVENT_ITEM_DELETED,
+            {"id": str(item_id)},
+        )
+
+        return True
+
+    async def update_item_scoped(
+        self, list_id: UUID, item_id: UUID, user: User, data
+    ) -> Item:
+        """
+        Update an item ensuring it belongs to the given list.
+        """
+        self._block_super_admin(user)
+
+        result = await self.db.execute(
+            select(Item).where(Item.id == item_id)
+        )
+        item = result.scalar_one_or_none()
+
+        if not item:
+            raise NotFoundException("Item not found")
+
+        if item.shopping_list_id != list_id:
+            raise NotFoundException("Item not found in this list")
+
+        shopping_list, membership = await self._get_list_with_access(list_id, user)
+        self._check_item_permission(user, membership, "can_update_item")
+
+        if data.name is not None:
+            item.name = data.name
+        if data.quantity is not None:
+            item.quantity = data.quantity
+        if data.status is not None:
+            item.status = data.status
+
+        await self.db.commit()
+        await self.db.refresh(item)
+
+        logger.info("Item updated (scoped): item_id=%s list_id=%s", item.id, list_id)
+
+        await self._publish_event(
+            list_id,
+            WS_EVENT_ITEM_UPDATED,
+            {
+                "id": str(item.id),
+                "name": item.name,
+                "quantity": item.quantity,
+                "status": item.status.value,
+            },
+        )
+
+        return item
+
+    async def delete_item_scoped(
+        self, list_id: UUID, item_id: UUID, user: User
+    ) -> bool:
+        """
+        Delete an item ensuring it belongs to the given list.
+        """
+        self._block_super_admin(user)
+
+        result = await self.db.execute(
+            select(Item).where(Item.id == item_id)
+        )
+        item = result.scalar_one_or_none()
+
+        if not item:
+            raise NotFoundException("Item not found")
+
+        if item.shopping_list_id != list_id:
+            raise NotFoundException("Item not found in this list")
+
+        shopping_list, membership = await self._get_list_with_access(list_id, user)
+        self._check_item_permission(user, membership, "can_delete_item")
+
+        await self.db.delete(item)
+        await self.db.commit()
+
+        logger.info("Item deleted (scoped): item_id=%s list_id=%s", item_id, list_id)
+
+        await self._publish_event(
+            list_id,
+            WS_EVENT_ITEM_DELETED,
             {"id": str(item_id)},
         )
 
@@ -590,7 +734,7 @@ class ListService:
         self, list_id: UUID, event_type: str, data: dict
     ) -> None:
         """Publish event to Redis for WebSocket broadcast."""
-        channel = f"list:{list_id}"
+        channel = f"{REDIS_CHANNEL_LIST}:{list_id}"
         message = json.dumps({
             "event": event_type,
             "list_id": str(list_id),

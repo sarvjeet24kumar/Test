@@ -11,7 +11,6 @@ from typing import Annotated
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Depends, Query, status, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from fastapi.exceptions import RequestValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
 from jose import JWTError
 
@@ -74,24 +73,6 @@ app.add_middleware(
 )
 
 
-# Exception handlers
-@app.exception_handler(RequestValidationError)
-async def validation_exception_handler(request: Request, exc: RequestValidationError):
-    """
-    Handle Pydantic validation errors and format them consistently with MiniMartException.
-    """
-    return JSONResponse(
-        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-        content={
-            "error": {
-                "code": "VALIDATION_ERROR",
-                "message": "Input validation failed",
-                "details": exc.errors(),
-            }
-        },
-    )
-
-
 # Include API router
 app.include_router(api_router)
 
@@ -100,7 +81,7 @@ app.include_router(api_router)
 @app.get("/health", tags=["Health"])
 async def health_check():
     """Basic liveness check."""
-    return {"status": "healthy", "app": settings.app_name}
+    return {"success": True, "data": {"status": "healthy", "app": settings.app_name}}
 
 
 @app.get("/health/ready", tags=["Health"])
@@ -126,10 +107,10 @@ async def readiness_check(db: Annotated[AsyncSession, Depends(get_db)]):
     if errors:
         return JSONResponse(
             status_code=503,
-            content={"status": "unhealthy", "errors": errors},
+            content={"success": False, "error": {"code": "UNHEALTHY", "message": "Service unhealthy", "details": {"errors": errors}}},
         )
     
-    return {"status": "ready"}
+    return {"success": True, "data": {"status": "ready"}}
 
 
 # WebSocket endpoint
@@ -188,6 +169,151 @@ async def websocket_endpoint(
         pass
     finally:
         await manager.disconnect(str(user.id))
+
+
+# ==================== Chat WebSocket Endpoint ====================
+
+# In-memory chat rooms: { "shopping_list:{list_id}": set([ws1, ws2, ...]) }
+chat_rooms: dict[str, set[WebSocket]] = {}
+
+
+@app.websocket("/ws/shopping-lists/{list_id}/chat")
+async def chat_websocket_endpoint(
+    websocket: WebSocket,
+    list_id: str,
+    token: str = Query(...),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Dedicated WebSocket endpoint for list-scoped real-time chat.
+
+    Connect:  ws://host/ws/shopping-lists/{list_id}/chat?token=<JWT>
+    Send:     {"type": "chat_message", "message": "Hello"}
+    Receive:  {"type": "chat_message", "id": "uuid", ...}
+    """
+    import json as _json
+    from app.services.chat_service import ChatService
+
+    # 1. Authenticate
+    try:
+        payload = decode_token(token)
+        if payload.get("type") != "access":
+            await websocket.close(code=4001, reason="Invalid token type")
+            return
+
+        user_id = payload.get("sub")
+        result = await db.execute(
+            select(User).where(User.id == UUID(user_id))
+        )
+        user = result.scalar_one_or_none()
+
+        if not user or not user.is_active:
+            await websocket.close(code=4001, reason="User not found or inactive")
+            return
+
+    except JWTError as e:
+        await websocket.close(code=4001, reason=f"Invalid token: {str(e)}")
+        return
+
+    # 2. Validate membership
+    try:
+        list_uuid = UUID(list_id)
+    except ValueError:
+        await websocket.close(code=4003, reason="Invalid list_id format")
+        return
+
+    chat_service = ChatService(db)
+    try:
+        await chat_service._verify_membership(list_uuid, user)
+    except Exception as e:
+        await websocket.close(code=4003, reason=str(e))
+        return
+
+    # 3. Accept connection and add to room
+    await websocket.accept()
+    room_key = f"shopping_list:{list_id}"
+
+    if room_key not in chat_rooms:
+        chat_rooms[room_key] = set()
+    chat_rooms[room_key].add(websocket)
+
+    try:
+        # Send connection confirmation
+        await websocket.send_text(_json.dumps({
+            "type": "connected",
+            "payload": {"list_id": list_id},
+        }))
+
+        # 4. Message loop
+        while True:
+            raw = await websocket.receive_text()
+
+            try:
+                data = _json.loads(raw)
+            except _json.JSONDecodeError:
+                await websocket.send_text(_json.dumps({
+                    "type": "error",
+                    "payload": {"message": "Invalid JSON"},
+                }))
+                continue
+
+            msg_type = data.get("type")
+
+            if msg_type == "chat_message":
+                content = data.get("message", "").strip()
+                if not content:
+                    await websocket.send_text(_json.dumps({
+                        "type": "error",
+                        "payload": {"message": "Message content cannot be empty"},
+                    }))
+                    continue
+
+                # Re-validate membership on every send
+                try:
+                    await chat_service._verify_membership(list_uuid, user)
+                except Exception:
+                    await websocket.send_text(_json.dumps({
+                        "type": "error",
+                        "payload": {"message": "You are no longer a member of this list"},
+                    }))
+                    continue
+
+                # Persist & get broadcast payload
+                broadcast_data = await chat_service.send_message(
+                    list_uuid, user, content
+                )
+
+                # Broadcast to all sockets in this room
+                broadcast_msg = _json.dumps({
+                    "type": "chat_message",
+                    **broadcast_data,
+                })
+
+                dead = []
+                for ws in chat_rooms.get(room_key, set()):
+                    try:
+                        await ws.send_text(broadcast_msg)
+                    except Exception:
+                        dead.append(ws)
+
+                for ws in dead:
+                    chat_rooms.get(room_key, set()).discard(ws)
+
+            elif msg_type == "ping":
+                await websocket.send_text(_json.dumps({"type": "pong", "payload": {}}))
+
+            else:
+                await websocket.send_text(_json.dumps({
+                    "type": "error",
+                    "payload": {"message": f"Unknown message type: {msg_type}"},
+                }))
+
+    except WebSocketDisconnect:
+        pass
+    finally:
+        chat_rooms.get(room_key, set()).discard(websocket)
+        if room_key in chat_rooms and not chat_rooms[room_key]:
+            del chat_rooms[room_key]
 
 
 # Run with: uvicorn app.main:app --reload

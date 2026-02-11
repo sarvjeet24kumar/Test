@@ -2,6 +2,7 @@ from datetime import datetime
 from sqlalchemy import String, DateTime
 from sqlalchemy.orm import Mapped, mapped_column
 from app.models.base import BaseModel
+from app.common.constants import MAX_LENGTH_TOKEN, MAX_LENGTH_UUID_STR
 
 class BlacklistedToken(BaseModel):
     """
@@ -11,8 +12,8 @@ class BlacklistedToken(BaseModel):
 
     __tablename__ = "blacklisted_tokens"
 
-    token_id: Mapped[str] = mapped_column(String(255), unique=True, nullable=False, index=True)
-    user_id: Mapped[str] = mapped_column(String(36), nullable=True)
+    token_id: Mapped[str] = mapped_column(String(MAX_LENGTH_TOKEN), unique=True, nullable=False, index=True)
+    user_id: Mapped[str] = mapped_column(String(MAX_LENGTH_UUID_STR), nullable=True)
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     # created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
 

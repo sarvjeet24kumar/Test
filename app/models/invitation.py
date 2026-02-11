@@ -7,27 +7,18 @@ Represents a standalone invitation to join a shopping list.
 from datetime import datetime
 from typing import TYPE_CHECKING, Optional
 import uuid
-import enum
 
 from sqlalchemy import String, ForeignKey, Index, DateTime, func
 from sqlalchemy.dialects.postgresql import UUID, ENUM
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import BaseModel
+from app.common.enums import InviteStatus
+from app.common.constants import MAX_LENGTH_TOKEN
 
 if TYPE_CHECKING:
     from app.models.shopping_list import ShoppingList
     from app.models.user import User
-
-
-class InviteStatus(str, enum.Enum):
-    """Status of an invitation."""
-
-    PENDING = "PENDING"
-    ACCEPTED = "ACCEPTED"
-    REJECTED = "REJECTED"
-    EXPIRED = "EXPIRED"
-    CANCELLED = "CANCELLED"
 
 
 class ShoppingListInvite(BaseModel):
@@ -71,7 +62,7 @@ class ShoppingListInvite(BaseModel):
         ForeignKey("users.id", ondelete="CASCADE"),
         nullable=False,
     )
-    token: Mapped[str] = mapped_column(String(255), unique=True, nullable=False)
+    token: Mapped[str] = mapped_column(String(MAX_LENGTH_TOKEN), unique=True, nullable=False)
     status: Mapped[InviteStatus] = mapped_column(
         ENUM(InviteStatus, name="invite_status", create_type=True),
         default=InviteStatus.PENDING,
@@ -86,6 +77,14 @@ class ShoppingListInvite(BaseModel):
         nullable=True,
     )
     rejected_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
+    cancelled_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
+    resent_at: Mapped[Optional[datetime]] = mapped_column(
         DateTime(timezone=True),
         nullable=True,
     )

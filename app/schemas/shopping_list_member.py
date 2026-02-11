@@ -9,7 +9,7 @@ from typing import Optional
 from uuid import UUID
 from pydantic import BaseModel, Field, EmailStr
 
-from app.models.shopping_list_member import MemberRole
+from app.common.enums import MemberRole
 
 
 class MemberResponse(BaseModel):
@@ -37,17 +37,6 @@ class UpdateMemberPermissions(BaseModel):
     can_delete_item: Optional[bool] = None
 
 
-class InviteRequest(BaseModel):
-    """Invitation request schema."""
-
-    email: EmailStr
-
-
-class InviteResponse(BaseModel):
-    """Invitation response schema."""
-
-    message: str = "Invitation sent successfully"
-    expires_at: datetime
 
 
 class RemoveMemberResponse(BaseModel):

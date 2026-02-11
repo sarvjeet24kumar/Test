@@ -23,11 +23,12 @@ from app.exceptions import (
     NotFoundException,
     CredentialsException,
 )
-from app.models.user import User, UserRole
+from app.models.user import User
 from app.models.tenant import Tenant
 from app.models.shopping_list import ShoppingList
-from app.models.shopping_list_member import ShoppingListMember, MemberRole
+from app.models.shopping_list_member import ShoppingListMember
 from app.services.redis_service import RedisService
+from app.common.enums import UserRole, MemberRole
 
 
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
@@ -140,10 +141,15 @@ async def get_current_verified_user(
         User: The authenticated and verified user
     
     Raises:
-        EmailNotVerifiedException: If email is not verified
+        MiniMartException: If email is not verified (ACCOUNT_NOT_VERIFIED)
     """
     if not current_user.is_email_verified:
-        raise EmailNotVerifiedException()
+        from app.exceptions.base import MiniMartException
+        raise MiniMartException(
+            status_code=403,
+            code="ACCOUNT_NOT_VERIFIED",
+            message="Please verify your account before continuing.",
+        )
     return current_user
 
 

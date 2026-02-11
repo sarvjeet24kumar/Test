@@ -27,8 +27,6 @@ from app.schemas.shopping_list import (
 )
 from app.schemas.shopping_list_member import (
     MemberResponse,
-    InviteRequest,
-    InviteResponse,
 )
 from app.schemas.item import (
     ItemCreate,
@@ -38,7 +36,9 @@ from app.schemas.item import (
 from app.schemas.invitation import (
     InvitationAcceptRequest,
     InvitationRejectRequest,
-    InvitationAcceptResponse,
+    InvitationResponse,
+    InviteRequest,
+    InviteResponse,
 )
 
 __all__ = [
@@ -74,5 +74,5 @@ __all__ = [
     # Invitation
     "InvitationAcceptRequest",
     "InvitationRejectRequest",
-    "InvitationAcceptResponse",
+    "InvitationResponse",
 ]

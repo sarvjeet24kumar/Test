@@ -9,7 +9,7 @@ from typing import Optional
 from uuid import UUID
 from pydantic import BaseModel, Field
 
-from app.models.item import ItemStatus
+from app.common.enums import ItemStatus
 
 
 class ItemBase(BaseModel):

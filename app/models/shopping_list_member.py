@@ -8,24 +8,17 @@ Handles invitations via status (PENDING/ACCEPTED).
 from datetime import datetime
 from typing import TYPE_CHECKING, Optional
 import uuid
-import enum
 
 from sqlalchemy import ForeignKey, UniqueConstraint, Index, DateTime, Boolean, func
 from sqlalchemy.dialects.postgresql import UUID, ENUM
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import BaseModel
+from app.common.enums import MemberRole
 
 if TYPE_CHECKING:
     from app.models.shopping_list import ShoppingList
     from app.models.user import User
-
-
-class MemberRole(str, enum.Enum):
-    """Roles for shopping list membership."""
-
-    OWNER = "OWNER"
-    MEMBER = "MEMBER"
 
 
 class ShoppingListMember(BaseModel):

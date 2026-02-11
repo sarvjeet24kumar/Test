@@ -13,7 +13,8 @@ from sqlalchemy import select, func
 from app.core.security import hash_password, generate_otp
 from app.exceptions import NotFoundException, ConflictException
 from app.models.tenant import Tenant
-from app.models.user import User, UserRole
+from app.models.user import User
+from app.common.enums import UserRole
 from app.schemas.tenant import TenantCreate, TenantUpdate
 from app.services.redis_service import RedisService
 from app.services.email_service import EmailService

@@ -211,3 +211,50 @@ def decode_invitation_token(token: str) -> Dict[str, Any]:
         raise JWTError("Invalid token type")
     
     return payload
+
+
+def create_password_reset_token(
+    user_id: UUID,
+    tenant_id: Optional[UUID],
+) -> str:
+    """
+    Create a JWT password reset token (15-min expiry).
+    
+    Args:
+        user_id: User's UUID
+        tenant_id: Tenant UUID
+    
+    Returns:
+        Encoded JWT string with jti for single-use tracking
+    """
+    expire = datetime.now(timezone.utc) + timedelta(minutes=15)
+
+    payload = {
+        "sub": str(user_id),
+        "tenant_id": str(tenant_id) if tenant_id else None,
+        "type": "password_reset",
+        "exp": expire,
+        "iat": datetime.now(timezone.utc),
+        "jti": str(uuid4()),
+    }
+
+    return jwt.encode(payload, settings.jwt_secret_key, algorithm=settings.jwt_algorithm)
+
+
+def decode_password_reset_token(token: str) -> Dict[str, Any]:
+    """
+    Decode and validate a password reset token.
+    
+    Raises:
+        JWTError: If token is invalid, expired, or wrong type
+    """
+    payload = jwt.decode(
+        token,
+        settings.jwt_secret_key,
+        algorithms=[settings.jwt_algorithm],
+    )
+
+    if payload.get("type") != "password_reset":
+        raise JWTError("Invalid token type")
+
+    return payload

@@ -12,19 +12,21 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.session import get_db
 from app.core.dependencies import require_role, get_current_verified_user, PaginationParams
+from app.core.responses import success_response
 from app.exceptions import ForbiddenException
-from app.models.user import User, UserRole
+from app.models.user import User
+from app.common.enums import UserRole
 from app.services.user_service import UserService
 from math import ceil
-from app.schemas.common import PaginatedResponse
 from app.schemas.user import UserCreate, UserUpdate, UserResponse
+from app.schemas.common import ResponseEnvelope, PaginatedResponse, MessageResponse
 
 router = APIRouter()
 
 
 @router.post(
     "",
-    response_model=UserResponse,
+    response_model=ResponseEnvelope[UserResponse],
     status_code=status.HTTP_201_CREATED,
 )
 async def create_user(
@@ -35,22 +37,17 @@ async def create_user(
 ):
     """
     Create a new user.
-    
-    - **Super Admin**: Can create a `TENANT_ADMIN` in any tenant (specified in payload).
-    - **Tenant Admin**: Can only create a `USER` in their own tenant.
     """
     user_service = UserService(db)
     
     if current_user.role == UserRole.SUPER_ADMIN:
-        # Super Admin creates Tenant Admin by default
-        return await user_service.create_user(
+        user = await user_service.create_user(
             data=data,
             role=UserRole.TENANT_ADMIN,
             background_tasks=background_tasks,
         )
     elif current_user.role == UserRole.TENANT_ADMIN:
-        # Tenant Admin can only create USER in their own tenant
-        return await user_service.create_user(
+        user = await user_service.create_user(
             data=data,
             tenant_id=current_user.tenant_id,
             role=UserRole.USER,
@@ -58,9 +55,26 @@ async def create_user(
         )
     else:
         raise ForbiddenException("Only Admins can create users")
+    
+    return success_response({
+        "id": user.id,
+        "email": user.email,
+        "username": user.username,
+        "first_name": user.first_name,
+        "last_name": user.last_name,
+        "role": user.role,
+        "is_active": user.is_active,
+        "is_email_verified": user.is_email_verified,
+        "tenant_id": user.tenant_id,
+        "created_at": user.created_at,
+    })
 
 
-@router.get("", response_model=PaginatedResponse[UserResponse])
+@router.get(
+    "",
+    response_model=ResponseEnvelope[PaginatedResponse[UserResponse]],
+    status_code=status.HTTP_200_OK,
+)
 async def list_users(
     current_user: Annotated[User, Depends(require_role(UserRole.TENANT_ADMIN, UserRole.SUPER_ADMIN))],
     db: Annotated[AsyncSession, Depends(get_db)],
@@ -68,36 +82,36 @@ async def list_users(
 ):
     """
     List users based on role.
-    
-    - **Super Admin**: Sees all `TENANT_ADMIN` users (all tenants, including deleted).
-    - **Tenant Admin**: Sees all users in their own tenant.
     """
     user_service = UserService(db)
     
     if current_user.role == UserRole.SUPER_ADMIN:
-        # Super Admin sees global view (Tenant Admins + deleted)
         items, total = await user_service.get_users_in_tenant(
             skip=pagination.skip,
             limit=pagination.size
         )
     else:
-        # Tenant Admin sees all users in their tenant
         items, total = await user_service.get_users_in_tenant(
             tenant_id=current_user.tenant_id,
             skip=pagination.skip,
             limit=pagination.size
         )
     
-    return PaginatedResponse(
-        items=items,
-        total=total,
-        page=pagination.page,
-        size=pagination.size,
-        pages=ceil(total / pagination.size) if total > 0 else 1,
-    )
+    
+    return success_response({
+        "items": items,
+        "total": total,
+        "page": pagination.page,
+        "size": pagination.size,
+        "pages": ceil(total / pagination.size) if total > 0 else 1,
+    })
 
 
-@router.get("/{user_id}", response_model=UserResponse)
+@router.get(
+    "/{user_id}",
+    response_model=ResponseEnvelope[UserResponse],
+    status_code=status.HTTP_200_OK,
+)
 async def get_user(
     user_id: UUID,
     current_user: Annotated[User, Depends(get_current_verified_user)],
@@ -105,17 +119,29 @@ async def get_user(
 ):
     """
     Get a specific user.
-    
-    Access:
-    - **Self**: Any user can see their own profile.
-    - **Super Admin**: Can see Tenant Admins globally.
-    - **Tenant Admin**: Can see users in their specific tenant.
     """
     user_service = UserService(db)
-    return await user_service.get_user(user_id, current_user)
+    user = await user_service.get_user(user_id, current_user)
+    return success_response({
+        "id": str(user.id),
+        "email": user.email,
+        "username": user.username,
+        "first_name": user.first_name,
+        "last_name": user.last_name,
+        "role": user.role.value,
+        "is_active": user.is_active,
+        "is_email_verified": user.is_email_verified,
+        "tenant_id": str(user.tenant_id) if user.tenant_id else None,
+        "created_at": user.created_at.isoformat(),
+        "deleted_at": user.deleted_at.isoformat() if user.deleted_at else None,
+    })
 
 
-@router.patch("/{user_id}", response_model=UserResponse)
+@router.patch(
+    "/{user_id}",
+    response_model=ResponseEnvelope[UserResponse],
+    status_code=status.HTTP_200_OK,
+)
 async def update_user(
     user_id: UUID,
     data: UserUpdate,
@@ -124,14 +150,22 @@ async def update_user(
 ):
     """
     Update a user.
-    
-    Access:
-    - **Self**: Update names/username (email update blocked).
-    - **Super Admin**: Manage Tenant Admins globally.
-    - **Tenant Admin**: Manage users in their tenant.
     """
     user_service = UserService(db)
-    return await user_service.update_user(user_id, current_user, data)
+    user = await user_service.update_user(user_id, current_user, data)
+    return success_response({
+        "id": str(user.id),
+        "email": user.email,
+        "username": user.username,
+        "first_name": user.first_name,
+        "last_name": user.last_name,
+        "role": user.role.value,
+        "is_active": user.is_active,
+        "is_email_verified": user.is_email_verified,
+        "tenant_id": str(user.tenant_id) if user.tenant_id else None,
+        "created_at": user.created_at.isoformat(),
+        "deleted_at": user.deleted_at.isoformat() if user.deleted_at else None,
+    })
 
 
 @router.delete("/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -142,17 +176,16 @@ async def deactivate_user(
 ):
     """
     Deactivate a user (soft delete).
-    
-    Access:
-    - **Self**: Any user can deactivate their own account.
-    - **Super Admin**: Can deactivate global Tenant Admins.
-    - **Tenant Admin**: Can deactivate users in their tenant.
     """
     user_service = UserService(db)
     return await user_service.deactivate_user(user_id, current_user)
 
 
-@router.post("/{user_id}/resend-otp", status_code=status.HTTP_200_OK)
+@router.post(
+    "/{user_id}/resend-otp",
+    response_model=ResponseEnvelope[MessageResponse],
+    status_code=status.HTTP_200_OK,
+)
 async def resend_user_otp(
     user_id: UUID,
     current_user: Annotated[User, Depends(get_current_verified_user)],
@@ -164,4 +197,4 @@ async def resend_user_otp(
     """
     user_service = UserService(db)
     await user_service.resend_verification_otp(user_id, current_user, background_tasks)
-    return {"message": "OTP sent successfully"}
+    return success_response({"message": "OTP sent successfully"})

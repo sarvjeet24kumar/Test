@@ -6,24 +6,14 @@ Represents an item in a shopping list.
 
 from typing import TYPE_CHECKING, Optional
 import uuid
-import enum
 
 from sqlalchemy import String, Integer, ForeignKey, CheckConstraint, Index
 from sqlalchemy.dialects.postgresql import UUID, ENUM
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import BaseModel
-
-if TYPE_CHECKING:
-    from app.models.shopping_list import ShoppingList
-    from app.models.user import User
-
-
-class ItemStatus(str, enum.Enum):
-    """Status of a shopping list item."""
-
-    PENDING = "PENDING"
-    PURCHASED = "PURCHASED"
+from app.common.enums import ItemStatus
+from app.common.constants import MAX_LENGTH_NAME
 
 
 class Item(BaseModel):
@@ -56,7 +46,7 @@ class Item(BaseModel):
         ForeignKey("users.id", ondelete="SET NULL"),
         nullable=True,
     )
-    name: Mapped[str] = mapped_column(String(255), nullable=False)
+    name: Mapped[str] = mapped_column(String(MAX_LENGTH_NAME), nullable=False)
     quantity: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
     status: Mapped[ItemStatus] = mapped_column(
         ENUM(ItemStatus, name="item_status", create_type=True),

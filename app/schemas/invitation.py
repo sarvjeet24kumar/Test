@@ -1,58 +1,57 @@
 """
 Invitation Schemas
 
-Request and response schemas for stateless invitation handling.
+Request and response schemas for DB-backed invitation handling.
 """
 
+from datetime import datetime
+from typing import Optional
 from uuid import UUID
-from pydantic import BaseModel
+from pydantic import BaseModel, EmailStr
 
-from app.models.shopping_list_member import MemberRole
+from app.common.enums import MemberRole, InviteStatus
+
+
+class InviteRequest(BaseModel):
+    """Invitation request schema."""
+
+    email: EmailStr
+
+
+class InviteResponse(BaseModel):
+    """Invitation response schema."""
+
+    message: str = "Invitation sent successfully"
+    expires_at: datetime
 
 
 class InvitationAcceptRequest(BaseModel):
     """Accept invitation request."""
-
     token: str
 
 
 class InvitationRejectRequest(BaseModel):
     """Reject invitation request."""
-
     token: str
 
 
-class InvitationAcceptResponse(BaseModel):
-    """Accept invitation response."""
-
-    message: str = "Invitation accepted"
-    list: "AcceptedListInfo"
-
-
-class AcceptedListInfo(BaseModel):
-    """Accepted list information."""
-
+class InvitationResponse(BaseModel):
+    """Full invitation response."""
     id: UUID
-    name: str
-    role: MemberRole = MemberRole.MEMBER
+    shopping_list_id: UUID
+    list_name: Optional[str] = None
+    invited_user_id: UUID
+    invited_email: Optional[str] = None
+    invited_username: Optional[str] = None
+    invited_by_user_id: UUID
+    invited_by_username: Optional[str] = None
+    status: str
+    expires_at: datetime
+    created_at: datetime
+    accepted_at: Optional[datetime] = None
+    rejected_at: Optional[datetime] = None
+    cancelled_at: Optional[datetime] = None
+    resent_at: Optional[datetime] = None
 
-
-# Rebuild for forward reference
-InvitationAcceptResponse.model_rebuild()
-
-
-class InvitationRejectResponse(BaseModel):
-    """Reject invitation response."""
-
-    message: str = "Invitation rejected"
-
-
-class InvitationTokenPayload(BaseModel):
-    """Invitation token payload structure (internal use)."""
-
-    type: str = "list_invite"
-    list_id: UUID
-    email: str
-    tenant_id: UUID
-    inviter_id: UUID
-    jti: str  # unique token identifier
+    class Config:
+        from_attributes = True

@@ -7,13 +7,19 @@ Users belong to exactly one tenant.
 
 from typing import TYPE_CHECKING, List, Optional
 import uuid
-import enum
 
 from sqlalchemy import String, Boolean, ForeignKey, UniqueConstraint, Index
 from sqlalchemy.dialects.postgresql import UUID, ENUM
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import BaseModel
+from app.common.enums import UserRole
+from app.common.constants import (
+    MAX_LENGTH_NAME,
+    MAX_LENGTH_EMAIL,
+    MAX_LENGTH_PASSWORD,
+    MAX_LENGTH_USERNAME,
+)
 
 if TYPE_CHECKING:
     from app.models.tenant import Tenant
@@ -23,14 +29,6 @@ if TYPE_CHECKING:
     from app.models.chat_message import ChatMessage
     from app.models.notification import Notification
     from app.models.invitation import ShoppingListInvite
-
-
-class UserRole(str, enum.Enum):
-    """User roles for platform-level access control."""
-
-    SUPER_ADMIN = "SUPER_ADMIN"
-    TENANT_ADMIN = "TENANT_ADMIN"
-    USER = "USER"
 
 
 class User(BaseModel):
@@ -64,11 +62,11 @@ class User(BaseModel):
         ForeignKey("tenants.id", ondelete="CASCADE"),
         nullable=True,
     )
-    first_name: Mapped[str] = mapped_column(String(100), nullable=False)
-    last_name: Mapped[str] = mapped_column(String(100), nullable=False)
-    username: Mapped[str] = mapped_column(String(100), nullable=False, index=True)
-    email: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
-    password: Mapped[str] = mapped_column(String(255), nullable=False)
+    first_name: Mapped[str] = mapped_column(String(MAX_LENGTH_NAME), nullable=False)
+    last_name: Mapped[str] = mapped_column(String(MAX_LENGTH_NAME), nullable=False)
+    username: Mapped[str] = mapped_column(String(MAX_LENGTH_USERNAME), nullable=False, index=True)
+    email: Mapped[str] = mapped_column(String(MAX_LENGTH_EMAIL), nullable=False, index=True)
+    password: Mapped[str] = mapped_column(String(MAX_LENGTH_PASSWORD), nullable=False)
     role: Mapped[UserRole] = mapped_column(
         ENUM(UserRole, name="user_role", create_type=True),
         default=UserRole.USER,
