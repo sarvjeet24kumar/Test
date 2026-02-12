@@ -57,6 +57,14 @@
                     const chat = data.payload.data;
                     msgDiv.innerHTML += `<p><b>${chat.sender_name}:</b> ${chat.message}</p>`;
                 }
+                // Handle Kicked event
+                else if (data.type === 'kicked') {
+                    msgDiv.innerHTML += `<div style="background: #ffe6e6; border: 1px solid red; padding: 5px; margin: 5px 0;">
+                        <b>System Notice:</b> You have been kicked.<br>
+                        Reason: ${data.payload.reason}<br>
+                        List ID: ${data.payload.list_id}
+                    </div>`;
+                }
                 else {
                     msgDiv.innerHTML += `<p style="color: gray;"><i>[${data.type}] ${JSON.stringify(data.payload || {})}</i></p>`;
                 }

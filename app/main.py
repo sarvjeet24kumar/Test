@@ -118,14 +118,6 @@ async def websocket_endpoint(
 ):
     """
     WebSocket endpoint for real-time updates.
-    
-    Query parameters:
-    - token: JWT access token
-    
-    Message format:
-    - Subscribe: {"type": "subscribe", "payload": {"list_id": "uuid"}}
-    - Unsubscribe: {"type": "unsubscribe", "payload": {"list_id": "uuid"}}
-    - Ping: {"type": "ping"}
     """
     # Authenticate
     try:
@@ -134,6 +126,12 @@ async def websocket_endpoint(
             await websocket.close(code=4001, reason="Invalid token type")
             return
         
+        # Proactive Security: Check if token is blacklisted (logout)
+        token_id = payload.get("jti")
+        if token_id and await RedisService.is_access_token_blacklisted(token_id):
+            await websocket.close(code=4001, reason="Token revoked")
+            return
+
         user_id = payload.get("sub")
         result = await db.execute(
             select(User).where(User.id == UUID(user_id))
@@ -148,8 +146,9 @@ async def websocket_endpoint(
         await websocket.close(code=4001, reason=f"Invalid token: {str(e)}")
         return
     
-    # Connect
-    await manager.connect(websocket, user)
+    # Connect with "global" scope
+    await websocket.accept()
+    await manager.connect(websocket, str(user.id), scope="global")
     handler = WebSocketHandler(websocket, user, db)
     
     try:
@@ -194,6 +193,12 @@ async def chat_websocket_endpoint(
             await websocket.close(code=4001, reason="Invalid token type")
             return
 
+        # Proactive Security: Check if token is blacklisted (logout)
+        token_id = payload.get("jti")
+        if token_id and await RedisService.is_access_token_blacklisted(token_id):
+            await websocket.close(code=4001, reason="Token revoked")
+            return
+
         user_id = payload.get("sub")
         result = await db.execute(
             select(User).where(User.id == UUID(user_id))
@@ -215,12 +220,14 @@ async def chat_websocket_endpoint(
         await websocket.close(code=4003, reason="Invalid list_id format")
         return
 
-    # Use manager to connect and subscribe
-    await manager.connect(websocket, user)
+    # Use manager to connect and subscribe (Dedicated scope for this list)
+    await websocket.accept()
+    await manager.connect(websocket, str(user.id), scope=list_id)
     subscribed = await manager.subscribe_to_list(str(user.id), list_id, db)
+    
     if not subscribed:
-        await manager.disconnect(str(user.id), websocket)
         await websocket.close(code=4003, reason="Not a member of this list")
+        await manager.disconnect(str(user.id), websocket)
         return
 
     chat_service = ChatService(db)
@@ -265,7 +272,7 @@ async def chat_websocket_endpoint(
                     }))
                     continue
 
-                # Persist & Broadcast is handled by the service
+                # Persist & Broadcast is handled by the service using manager.broadcast_to_list
                 try:
                     await chat_service.send_message(list_uuid, user, content)
                 except Exception as e:

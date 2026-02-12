@@ -350,6 +350,10 @@ class AuthService:
                 self.db.add(blacklisted)
                 await self.db.commit()
 
+        # Proactive Security: Immediately close all active WebSocket connections for this user
+        from app.websocket.manager import manager
+        await manager.disconnect_all_for_user(str(user_id))
+
     async def refresh_tokens(self, refresh_token: str) -> Tuple[str, str]:
         from jose import jwt
         from uuid import UUID as UUIDType

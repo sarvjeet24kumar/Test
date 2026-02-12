@@ -20,37 +20,38 @@ from app.models.user import User
 class ConnectionManager:
     """
     Manages WebSocket connections and message broadcasting.
-    Supports multiple connections per user (e.g., from multiple tabs or global/dedicated sockets).
+    Supports multiple connections per user and scoped subscriptions.
     """
 
     def __init__(self):
-        # user_id -> Set of WebSockets
-        self.active_connections: Dict[str, Set[WebSocket]] = {}
+        # user_id -> Dict[WebSocket, str (scope)]
+        self.active_connections: Dict[str, Dict[WebSocket, str]] = {}
         # list_id -> Set of user_ids
         self.list_subscribers: Dict[str, Set[str]] = {}
         # user_id -> Set of list_ids
         self.user_subscriptions: Dict[str, Set[str]] = {}
 
-    async def connect(self, websocket: WebSocket, user: User) -> None:
-        """Accept a new WebSocket connection."""
-        await websocket.accept()
-        user_id = str(user.id)
+    async def connect(self, websocket: WebSocket, user_id: str, scope: str = "global") -> None:
+        """Accept a new WebSocket connection with a specific scope."""
+        # Note: websocket.accept() should be called by the endpoint before/after calling this if preferred,
+        # but here we assume it's already accepted or we handle it if needed.
+        # To be safe, we let the endpoint handle accept() as it might need specific headers.
         
         if user_id not in self.active_connections:
-            self.active_connections[user_id] = set()
+            self.active_connections[user_id] = {}
             self.user_subscriptions[user_id] = set()
         
-        self.active_connections[user_id].add(websocket)
+        self.active_connections[user_id][websocket] = scope
 
     async def disconnect(self, user_id: str, websocket: WebSocket) -> None:
         """Handle WebSocket disconnection."""
         if user_id in self.active_connections:
-            self.active_connections[user_id].discard(websocket)
+            self.active_connections[user_id].pop(websocket, None)
             if not self.active_connections[user_id]:
                 del self.active_connections[user_id]
                 # Clean up subscriptions only if NO connections remain for this user
                 if user_id in self.user_subscriptions:
-                    for list_id in self.user_subscriptions[user_id]:
+                    for list_id in list(self.user_subscriptions[user_id]):
                         if list_id in self.list_subscribers:
                             self.list_subscribers[list_id].discard(user_id)
                             if not self.list_subscribers[list_id]:
@@ -98,34 +99,35 @@ class ConnectionManager:
     async def broadcast_to_list(self, list_id: str, message: dict) -> None:
         """Broadcast a message to all subscribers of a list across all their connections."""
         if list_id not in self.list_subscribers:
-            print(f"Manager: No subscribers for list {list_id}")
             return
         
         message_str = json.dumps(message)
         user_ids = list(self.list_subscribers[list_id])
-        print(f"Manager: Broadcasting to {len(user_ids)} users for list {list_id}")
         
         for user_id in user_ids:
             if user_id in self.active_connections:
-                sockets = list(self.active_connections[user_id])
-                print(f"Manager: Sending to {len(sockets)} sockets for user {user_id}")
                 dead_sockets = []
+                # Create a copy of keys to avoid modification issues
+                sockets = list(self.active_connections[user_id].keys())
                 for ws in sockets:
-                    try:
-                        await ws.send_text(message_str)
-                    except Exception as e:
-                        print(f"Manager: Failed to send to socket for user {user_id}: {e}")
-                        dead_sockets.append(ws)
+                    # Filter: Only send list-scoped messages to global sockets OR the specific list socket
+                    scope = self.active_connections[user_id].get(ws)
+                    if scope == "global" or scope == list_id:
+                        try:
+                            await ws.send_text(message_str)
+                        except Exception:
+                            dead_sockets.append(ws)
                 
                 for ws in dead_sockets:
                     await self.disconnect(user_id, ws)
 
     async def broadcast_event(self, list_id: str, event_type: str, data: dict) -> None:
         """Broadcast a structured event to all list subscribers."""
-        if event_type == "member_removed":
-            removed_user_id = data.get("user_id")
+        # Special handling for member removal: kick the user immediately
+        if event_type == "member_removed" or event_type == "member_left":
+            removed_user_id = str(data.get("user_id"))
             if removed_user_id:
-                await self.kick_user_from_list(removed_user_id, list_id, "removed_by_owner")
+                await self.kick_user_from_list(removed_user_id, list_id, event_type)
 
         await self.broadcast_to_list(
             list_id,
@@ -148,7 +150,8 @@ class ConnectionManager:
         dead_sockets = []
         success = False
         
-        for ws in list(self.active_connections[user_id]):
+        sockets = list(self.active_connections[user_id].keys())
+        for ws in sockets:
             try:
                 await ws.send_text(message_str)
                 success = True
@@ -160,16 +163,43 @@ class ConnectionManager:
             
         return success
 
+    async def disconnect_all_for_user(self, user_id: str, reason: str = "Logged out") -> None:
+        """Close ALL WebSocket connections for a specific user immediately."""
+        if user_id in self.active_connections:
+            # Create a copy of the socket list to avoid modification issues during iteration
+            sockets = list(self.active_connections[user_id].keys())
+            for ws in sockets:
+                try:
+                    await ws.close(code=4001, reason=reason)
+                except Exception:
+                    pass
+                await self.disconnect(user_id, ws)
+
     async def kick_user_from_list(self, user_id: str, list_id: str, reason: str) -> None:
-        """Kick a user from a list and notify them."""
-        message = {
+        """Kick a user from a specific list scope and close their dedicated sockets."""
+        # 1. Notify them on ALL connections (so they see it in the UI)
+        await self.send_to_user(user_id, {
             "type": "kicked",
             "payload": {
                 "list_id": list_id,
                 "reason": reason,
             },
-        }
-        await self.send_to_user(user_id, message)
+        })
+
+        # 2. Find and CLOSE any sockets specifically scoped to this list
+        if user_id in self.active_connections:
+            to_close = [
+                ws for ws, scope in self.active_connections[user_id].items()
+                if scope == list_id
+            ]
+            for ws in to_close:
+                try:
+                    await ws.close(code=4003, reason=f"Kicked: {reason}")
+                except Exception:
+                    pass
+                await self.disconnect(user_id, ws)
+
+        # 3. Remove from internal subscription registry
         await self.unsubscribe_from_list(user_id, list_id)
 
 

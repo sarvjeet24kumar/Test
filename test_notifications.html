@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>MiniMart Notification Test</title>
+    <style>
+        body {
+            font-family: sans-serif;
+            padding: 20px;
+        }
+
+        .notification {
+            background: #f0f7ff;
+            border-left: 5px solid #007bff;
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 4px;
+        }
+
+        #status {
+            font-weight: bold;
+            margin-bottom: 20px;
+        }
+    </style>
+</head>
+
+<body>
+    <h2>🔔 MiniMart Notification Monitor</h2>
+    <p>This tool monitors the global notification stream.</p>
+
+    <input type="text" id="token" placeholder="Paste Access Token (JWT)" style="width: 400px; padding: 8px;">
+    <button onclick="connect()" style="padding: 8px 15px;">Connect</button>
+
+    <div id="status">Status: Disconnected</div>
+    <hr>
+    <h3>Live Notifications:</h3>
+    <div id="log"></div>
+
+    <script>
+        let ws;
+        function connect() {
+            // Close existing connection if any
+            if (ws) {
+                ws.close();
+            }
+
+            const token = document.getElementById('token').value;
+            if (!token) return alert("Please paste a token");
+
+            const url = `ws://localhost:8000/ws?token=${token}`;
+            ws = new WebSocket(url);
+
+            ws.onopen = () => {
+                document.getElementById('status').innerText = 'Status: Connected';
+                document.getElementById('status').style.color = 'green';
+            };
+
+            ws.onmessage = (event) => {
+                const data = JSON.parse(event.data);
+                const log = document.getElementById('log');
+
+                let html = `<div class="notification">`;
+                html += `<strong>Type:</strong> ${data.type}<br>`;
+                html += `<pre>${JSON.stringify(data.payload, null, 2)}</pre>`;
+                html += `</div>`;
+
+                log.innerHTML = html + log.innerHTML;
+            };
+
+            ws.onclose = (event) => {
+                document.getElementById('status').innerText = `Status: Disconnected (${event.reason || 'No reason'})`;
+                document.getElementById('status').style.color = 'red';
+            };
+        }
+    </script>
+</body>
+
+</html>
