@@ -7,7 +7,7 @@ Request and response schemas for authentication endpoints.
 from datetime import datetime
 from typing import Optional
 from uuid import UUID
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, EmailStr, Field, ConfigDict
 
 
 class LoginRequest(BaseModel):
@@ -24,6 +24,8 @@ class LoginResponse(BaseModel):
     refresh_token: str
     token_type: str = "Bearer"
     expires_in: int = Field(..., description="Access token expiry in seconds")
+    
+    model_config = ConfigDict(from_attributes=True)
 
 
 class TokenPayload(BaseModel):
@@ -59,6 +61,8 @@ class OTPResponse(BaseModel):
 
     message: str = "OTP sent successfully"
     expires_in: int = Field(..., description="OTP expiry in seconds")
+    
+    model_config = ConfigDict(from_attributes=True)
 
 
 class PasswordResetRequest(BaseModel):
@@ -92,6 +96,8 @@ class SignupResponse(BaseModel):
     user_id: UUID
     email: str
     is_email_verified: bool = False
+    
+    model_config = ConfigDict(from_attributes=True)
 
 
 class LogoutRequest(BaseModel):

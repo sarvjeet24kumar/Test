@@ -19,6 +19,7 @@ from app.models.shopping_list import ShoppingList
 from app.models.shopping_list_member import ShoppingListMember
 from app.models.chat_message import ChatMessage
 from app.services.redis_service import RedisService
+from app.websocket.manager import manager
 from app.common.enums import UserRole, MemberRole
 from app.common.constants import (
     WS_EVENT_CHAT_MESSAGE,
@@ -100,8 +101,13 @@ class ChatService:
             content=content.strip(),
         )
         self.db.add(message)
-        await self.db.commit()
-        await self.db.refresh(message)
+        try:
+            await self.db.commit()
+            await self.db.refresh(message)
+        except Exception as e:
+            print(f"ChatService: Commit failed: {e}")
+            await self.db.rollback()
+            raise
 
         broadcast_payload = {
             "id": str(message.id),
@@ -112,15 +118,13 @@ class ChatService:
             "created_at": message.created_at.isoformat(),
         }
 
-        # Broadcast via Redis for WS
-        channel = f"{REDIS_CHANNEL_LIST}:{list_id}"
-        await RedisService.publish_event(
-            channel,
-            json.dumps({
-                "event": WS_EVENT_CHAT_MESSAGE,
-                "list_id": str(list_id),
-                "data": broadcast_payload,
-            }),
+        # Broadcast directly to connected subscribers
+        await manager.broadcast_to_list(
+            str(list_id),
+            {
+                "type": WS_EVENT_CHAT_MESSAGE,
+                **broadcast_payload
+            }
         )
 
         return broadcast_payload

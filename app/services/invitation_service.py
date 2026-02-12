@@ -30,7 +30,9 @@ from app.models.shopping_list_member import ShoppingListMember
 from app.models.invitation import ShoppingListInvite
 from app.services.redis_service import RedisService
 from app.services.email_service import EmailService
-from app.common.enums import UserRole, MemberRole, InviteStatus
+from app.services.notification_service import NotificationService
+from app.websocket.manager import manager
+from app.common.enums import UserRole, MemberRole, InviteStatus, NotificationType
 from app.common.constants import (
     WS_EVENT_INVITE_CREATED,
     WS_EVENT_INVITE_ACCEPTED,
@@ -55,7 +57,7 @@ class InvitationService:
     async def send_invitation(
         self,
         list_id: UUID,
-        invitee_email: str,
+        user_id: UUID,
         inviter: User,
         background_tasks: Optional[BackgroundTasks] = None,
     ) -> datetime:
@@ -92,7 +94,7 @@ class InvitationService:
         result = await self.db.execute(
             select(User).where(
                 and_(
-                    User.email == invitee_email,
+                    User.id == user_id,
                     User.tenant_id == inviter.tenant_id,
                 )
             )
@@ -140,7 +142,7 @@ class InvitationService:
         expires_delta = timedelta(hours=settings.invitation_token_expire_hours)
         token = create_invitation_token(
             list_id=list_id,
-            email=invitee_email,
+            email=invitee.email,
             tenant_id=inviter.tenant_id,
             inviter_id=inviter.id,
             expires_delta=expires_delta,
@@ -168,7 +170,7 @@ class InvitationService:
         if background_tasks:
             background_tasks.add_task(
                 EmailService.send_invitation_email,
-                to_email=invitee_email,
+                to_email=invitee.email,
                 inviter_name=inviter.username,
                 list_name=shopping_list.name,
                 accept_url=accept_url,
@@ -176,7 +178,7 @@ class InvitationService:
             )
         else:
             await EmailService.send_invitation_email(
-                to_email=invitee_email,
+                to_email=invitee.email,
                 inviter_name=inviter.username,
                 list_name=shopping_list.name,
                 accept_url=accept_url,
@@ -187,9 +189,22 @@ class InvitationService:
         await self._broadcast(list_id, "invite_created", {
             "invite_id": str(invite.id),
             "invited_user_id": str(invitee.id),
-            "invited_email": invitee_email,
+            "invited_email": invitee.email,
             "invited_by": str(inviter.id),
         })
+
+        # Create Persistent Notification
+        notification_service = NotificationService(self.db)
+        await notification_service.create_notification(
+            user_id=invitee.id,
+            notification_type=NotificationType.LIST_INVITE,
+            payload={
+                "invite_id": str(invite.id),
+                "list_name": shopping_list.name,
+                "inviter_username": inviter.username,
+            },
+            shopping_list_id=list_id,
+        )
 
         return expires_at
 
@@ -285,6 +300,18 @@ class InvitationService:
             "role": MemberRole.MEMBER.value,
         })
 
+        # Create Persistent Notification for the inviter
+        notification_service = NotificationService(self.db)
+        await notification_service.create_notification(
+            user_id=invite.invited_by_user_id,
+            notification_type=NotificationType.INVITE_ACCEPTED,
+            payload={
+                "username": user.username,
+                "list_name": shopping_list.name,
+            },
+            shopping_list_id=list_id,
+        )
+
         await self.db.refresh(shopping_list)
         return shopping_list
 
@@ -319,6 +346,18 @@ class InvitationService:
             "invite_id": str(invite.id),
             "invited_user_id": str(invite.invited_user_id),
         })
+
+        # Create Persistent Notification for the inviter
+        notification_service = NotificationService(self.db)
+        await notification_service.create_notification(
+            user_id=invite.invited_by_user_id,
+            notification_type=NotificationType.INVITE_REJECTED,
+            payload={
+                "username": "Someone",  # We don't necessarily have the user object here, but we can infer it
+                "invite_id": str(invite.id),
+            },
+            shopping_list_id=invite.shopping_list_id,
+        )
 
         return True
 
@@ -462,7 +501,7 @@ class InvitationService:
         status_filter: Optional[str] = None,
         skip: int = 0,
         limit: int = 20,
-    ) -> tuple[List[ShoppingListInvite], int]:
+    ) -> tuple[List[dict], int]:
         """
         Get invitations for a specific list. Owner / Tenant Admin only.
         """
@@ -487,6 +526,7 @@ class InvitationService:
         query = select(ShoppingListInvite).options(
             selectinload(ShoppingListInvite.invited_user),
             selectinload(ShoppingListInvite.invited_by_user),
+            selectinload(ShoppingListInvite.shopping_list),
         ).where(ShoppingListInvite.shopping_list_id == list_id)
 
         if status_filter and status_filter.upper() in InviteStatus.__members__:
@@ -504,7 +544,7 @@ class InvitationService:
         result = await self.db.execute(query)
         invites = result.scalars().all()
 
-        return invites, total
+        return [self._to_detail_dict(i) for i in invites], total
 
     async def get_my_invites(
         self,
@@ -512,13 +552,14 @@ class InvitationService:
         status_filter: Optional[str] = None,
         skip: int = 0,
         limit: int = 20,
-    ) -> tuple[List[ShoppingListInvite], int]:
+    ) -> tuple[List[dict], int]:
         """
         Get invitations sent to the current user across all lists.
         """
         query = select(ShoppingListInvite).options(
             selectinload(ShoppingListInvite.shopping_list),
             selectinload(ShoppingListInvite.invited_by_user),
+            selectinload(ShoppingListInvite.invited_user),
         ).where(
             and_(
                 ShoppingListInvite.invited_user_id == user.id,
@@ -538,9 +579,30 @@ class InvitationService:
         result = await self.db.execute(query)
         invites = result.scalars().all()
 
-        return invites, total
+        return [self._to_detail_dict(i) for i in invites], total
+
+    def _to_detail_dict(self, invite: ShoppingListInvite) -> dict:
+        """Convert an invitation ORM object to a detail dictionary."""
+        return {
+            "id": invite.id,
+            "shopping_list_id": invite.shopping_list_id,
+            "list_name": invite.shopping_list.name if invite.shopping_list else None,
+            "invited_user_id": invite.invited_user_id,
+            "invited_email": invite.invited_user.email if invite.invited_user else None,
+            "invited_username": invite.invited_user.username if invite.invited_user else None,
+            "invited_by_user_id": invite.invited_by_user_id,
+            "invited_by_username": invite.invited_by_user.username if invite.invited_by_user else None,
+            "status": invite.status,
+            "expires_at": invite.expires_at,
+            "created_at": invite.created_at,
+            "accepted_at": invite.accepted_at,
+            "rejected_at": invite.rejected_at,
+            "cancelled_at": invite.cancelled_at,
+            "resent_at": invite.resent_at,
+        }
 
     # ==================== Expire Stale Invites ====================
+    ...
 
     async def expire_stale_invites(self) -> int:
         """
@@ -568,11 +630,5 @@ class InvitationService:
     async def _broadcast(
         self, list_id: UUID, event_type: str, data: dict
     ) -> None:
-        """Publish event to Redis for WebSocket broadcast."""
-        channel = f"list:{list_id}"
-        message = json.dumps({
-            "event": event_type,
-            "list_id": str(list_id),
-            "data": data,
-        })
-        await RedisService.publish_event(channel, message)
+        """Broadcast event directly to connected subscribers."""
+        await manager.broadcast_event(str(list_id), event_type, data)

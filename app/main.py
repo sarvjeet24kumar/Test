@@ -38,14 +38,10 @@ async def lifespan(app: FastAPI):
     if settings.is_development:
         await init_db()
     
-    # Start WebSocket Redis listener
-    await manager.start_redis_listener()
-    
     yield
     
     # Shutdown
     print("Shutting down MiniMart API...")
-    await manager.stop_redis_listener()
     await RedisService.close()
     await close_db()
 
@@ -168,13 +164,10 @@ async def websocket_endpoint(
     except WebSocketDisconnect:
         pass
     finally:
-        await manager.disconnect(str(user.id))
+        await manager.disconnect(str(user.id), websocket)
 
 
 # ==================== Chat WebSocket Endpoint ====================
-
-# In-memory chat rooms: { "shopping_list:{list_id}": set([ws1, ws2, ...]) }
-chat_rooms: dict[str, set[WebSocket]] = {}
 
 
 @app.websocket("/ws/shopping-lists/{list_id}/chat")
@@ -215,28 +208,22 @@ async def chat_websocket_endpoint(
         await websocket.close(code=4001, reason=f"Invalid token: {str(e)}")
         return
 
-    # 2. Validate membership
+    # 2. Validate membership & Subscribe
     try:
         list_uuid = UUID(list_id)
     except ValueError:
         await websocket.close(code=4003, reason="Invalid list_id format")
         return
 
-    chat_service = ChatService(db)
-    try:
-        await chat_service._verify_membership(list_uuid, user)
-    except Exception as e:
-        await websocket.close(code=4003, reason=str(e))
+    # Use manager to connect and subscribe
+    await manager.connect(websocket, user)
+    subscribed = await manager.subscribe_to_list(str(user.id), list_id, db)
+    if not subscribed:
+        await manager.disconnect(str(user.id), websocket)
+        await websocket.close(code=4003, reason="Not a member of this list")
         return
 
-    # 3. Accept connection and add to room
-    await websocket.accept()
-    room_key = f"shopping_list:{list_id}"
-
-    if room_key not in chat_rooms:
-        chat_rooms[room_key] = set()
-    chat_rooms[room_key].add(websocket)
-
+    chat_service = ChatService(db)
     try:
         # Send connection confirmation
         await websocket.send_text(_json.dumps({
@@ -271,33 +258,23 @@ async def chat_websocket_endpoint(
                 # Re-validate membership on every send
                 try:
                     await chat_service._verify_membership(list_uuid, user)
-                except Exception:
+                except Exception as e:
                     await websocket.send_text(_json.dumps({
                         "type": "error",
                         "payload": {"message": "You are no longer a member of this list"},
                     }))
                     continue
 
-                # Persist & get broadcast payload
-                broadcast_data = await chat_service.send_message(
-                    list_uuid, user, content
-                )
-
-                # Broadcast to all sockets in this room
-                broadcast_msg = _json.dumps({
-                    "type": "chat_message",
-                    **broadcast_data,
-                })
-
-                dead = []
-                for ws in chat_rooms.get(room_key, set()):
-                    try:
-                        await ws.send_text(broadcast_msg)
-                    except Exception:
-                        dead.append(ws)
-
-                for ws in dead:
-                    chat_rooms.get(room_key, set()).discard(ws)
+                # Persist & Broadcast is handled by the service
+                try:
+                    await chat_service.send_message(list_uuid, user, content)
+                except Exception as e:
+                    print(f"Chat WS: Error in send_message: {e}")
+                    await websocket.send_text(_json.dumps({
+                        "type": "error",
+                        "payload": {"message": f"Server error: {str(e)}"},
+                    }))
+                    continue
 
             elif msg_type == "ping":
                 await websocket.send_text(_json.dumps({"type": "pong", "payload": {}}))
@@ -311,9 +288,7 @@ async def chat_websocket_endpoint(
     except WebSocketDisconnect:
         pass
     finally:
-        chat_rooms.get(room_key, set()).discard(websocket)
-        if room_key in chat_rooms and not chat_rooms[room_key]:
-            del chat_rooms[room_key]
+        await manager.disconnect(str(user.id), websocket)
 
 
 # Run with: uvicorn app.main:app --reload

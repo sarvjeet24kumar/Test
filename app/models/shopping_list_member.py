@@ -81,5 +81,9 @@ class ShoppingListMember(BaseModel):
         return f"<ShoppingListMember(list_id={self.shopping_list_id}, user_id={self.user_id}, role={self.role})>"
 
     @property
+    def username(self) -> str:
+        return self.user.username if self.user else "Unknown"
+
+    @property
     def is_owner(self) -> bool:
         return self.role == MemberRole.OWNER

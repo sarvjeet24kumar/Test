@@ -7,7 +7,9 @@ Request and response schemas for shopping list management.
 from datetime import datetime
 from typing import Optional, List
 from uuid import UUID
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
+
+from app.common.enums import MemberRole, ItemStatus
 
 
 class ShoppingListBase(BaseModel):
@@ -33,11 +35,10 @@ class MemberBrief(BaseModel):
 
     user_id: UUID
     username: str
-    role: str
+    role: MemberRole
     joined_at: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class ShoppingListResponse(ShoppingListBase):
@@ -49,8 +50,7 @@ class ShoppingListResponse(ShoppingListBase):
     created_at: datetime
     updated_at: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class ItemBrief(BaseModel):
@@ -59,12 +59,11 @@ class ItemBrief(BaseModel):
     id: UUID
     name: str
     quantity: int
-    status: str
+    status: ItemStatus
     added_by: Optional[UUID]
     created_at: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class ShoppingListDetailResponse(ShoppingListResponse):
@@ -87,5 +86,4 @@ class ShoppingListSummaryResponse(BaseModel):
     member_count: int
     created_at: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)

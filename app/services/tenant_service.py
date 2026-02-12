@@ -145,6 +145,7 @@ class TenantService:
             raise ConflictException("Tenant already deleted")
 
         tenant.deleted_at = func.now()
+        tenant.is_active = False
         await self.db.commit()
         await self.db.refresh(tenant)
         return tenant

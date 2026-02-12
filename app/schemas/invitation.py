@@ -7,7 +7,7 @@ Request and response schemas for DB-backed invitation handling.
 from datetime import datetime
 from typing import Optional
 from uuid import UUID
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, ConfigDict
 
 from app.common.enums import MemberRole, InviteStatus
 
@@ -15,7 +15,7 @@ from app.common.enums import MemberRole, InviteStatus
 class InviteRequest(BaseModel):
     """Invitation request schema."""
 
-    email: EmailStr
+    user_id: UUID
 
 
 class InviteResponse(BaseModel):
@@ -45,7 +45,7 @@ class InvitationResponse(BaseModel):
     invited_username: Optional[str] = None
     invited_by_user_id: UUID
     invited_by_username: Optional[str] = None
-    status: str
+    status: InviteStatus
     expires_at: datetime
     created_at: datetime
     accepted_at: Optional[datetime] = None
@@ -53,5 +53,4 @@ class InvitationResponse(BaseModel):
     cancelled_at: Optional[datetime] = None
     resent_at: Optional[datetime] = None
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)

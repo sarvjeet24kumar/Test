@@ -12,7 +12,7 @@ WebSocket event types, Redis key prefixes, and pagination defaults.
 MAX_LENGTH_NAME = 255          # user first/last name, list name, item name, tenant name
 MAX_LENGTH_EMAIL = 255         # email addresses
 MAX_LENGTH_PASSWORD = 255      # hashed password storage
-MAX_LENGTH_TOKEN = 255         # JWT / invitation tokens
+MAX_LENGTH_TOKEN = 1024         # JWT / invitation tokens
 MAX_LENGTH_USERNAME = 100      # usernames
 MAX_LENGTH_SLUG = 100          # tenant slugs
 MAX_LENGTH_UUID_STR = 36       # UUID as string (token_blacklist.user_id)

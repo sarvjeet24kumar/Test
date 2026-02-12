@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>MiniMart Chat Test</title>
+</head>
+
+<body>
+    <h2>MiniMart Chat Test</h2>
+    <input type="text" id="token" placeholder="JWT Token" style="width: 300px;"><br><br>
+    <input type="text" id="listId" placeholder="Shopping List UUID" style="width: 300px;"><br><br>
+    <button onclick="connect()">Connect</button>
+    <hr>
+    <div id="status">Disconnected</div>
+    <div id="messages"
+        style="height: 200px; border: 1px solid #ccc; overflow-y: scroll; margin: 10px 0; padding: 10px;"></div>
+    <input type="text" id="msgInput" placeholder="Message..." disabled>
+    <button id="sendBtn" onclick="sendMessage()" disabled>Send</button>
+
+    <script>
+        let ws;
+        function connect() {
+            // Close existing connection if any
+            if (ws) {
+                ws.close();
+            }
+
+            const token = document.getElementById('token').value;
+            const lid = document.getElementById('listId').value;
+            if (!token || !lid) {
+                alert("Please enter Token and List ID");
+                return;
+            }
+
+            const url = `ws://localhost:8000/ws/shopping-lists/${lid}/chat?token=${token}`;
+
+            document.getElementById('status').innerText = 'Connecting...';
+            ws = new WebSocket(url);
+
+            ws.onopen = () => {
+                document.getElementById('status').innerText = 'Connected';
+                document.getElementById('status').style.color = 'green';
+                document.getElementById('msgInput').disabled = false;
+                document.getElementById('sendBtn').disabled = false;
+            };
+
+            ws.onmessage = (event) => {
+                const data = JSON.parse(event.data);
+                const msgDiv = document.getElementById('messages');
+
+                // Handle direct chat_message type
+                if (data.type === 'chat_message') {
+                    msgDiv.innerHTML += `<p><b>${data.sender_name}:</b> ${data.message}</p>`;
+                }
+                // Handle standardized event type
+                else if (data.type === 'event' && data.payload.event === 'chat_message') {
+                    const chat = data.payload.data;
+                    msgDiv.innerHTML += `<p><b>${chat.sender_name}:</b> ${chat.message}</p>`;
+                }
+                else {
+                    msgDiv.innerHTML += `<p style="color: gray;"><i>[${data.type}] ${JSON.stringify(data.payload || {})}</i></p>`;
+                }
+                msgDiv.scrollTop = msgDiv.scrollHeight;
+            };
+
+            ws.onclose = (event) => {
+                document.getElementById('status').innerText = `Disconnected (${event.reason || 'No reason'})`;
+                document.getElementById('status').style.color = 'red';
+                document.getElementById('msgInput').disabled = true;
+                document.getElementById('sendBtn').disabled = true;
+            };
+
+            ws.onerror = (error) => {
+                document.getElementById('status').innerText = 'Error connecting';
+                document.getElementById('status').style.color = 'red';
+            };
+        }
+
+        function sendMessage() {
+            const msgInput = document.getElementById('msgInput');
+            const msg = msgInput.value.trim();
+            if (msg && ws && ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({ type: 'chat_message', message: msg }));
+                msgInput.value = '';
+            }
+        }
+
+        // Allow 'Enter' key to send message
+        document.getElementById('msgInput').addEventListener('keypress', function (e) {
+            if (e.key === 'Enter') {
+                sendMessage();
+            }
+        });
+    </script>
+</body>
+
+</html>

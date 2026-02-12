@@ -1,0 +1,1717 @@
+{
+  "info": {
+    "name": "MiniMart",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "description": "Multi-tenant shopping list application with real-time synchronization"
+  },
+  "item": [
+    {
+      "name": "Auth",
+      "item": [
+        {
+          "name": "Login",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "login"
+              ],
+              "variable": []
+            },
+            "description": "Authenticate user and return JWT tokens.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Signup",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/signup",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "signup"
+              ],
+              "variable": []
+            },
+            "description": "Register a new user account.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Logout",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/logout",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "logout"
+              ],
+              "variable": []
+            },
+            "description": "Logout user by blacklisting both access and refresh tokens.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Verify Email",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/verify-email",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "verify-email"
+              ],
+              "variable": []
+            },
+            "description": "Verify email address using OTP.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Resend Otp",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/resend-otp",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "resend-otp"
+              ],
+              "variable": []
+            },
+            "description": "Resend OTP for email verification.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Refresh Tokens",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/refresh",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "refresh"
+              ],
+              "variable": []
+            },
+            "description": "Refresh access and refresh tokens.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Change Password",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/change-password",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "change-password"
+              ],
+              "variable": []
+            },
+            "description": "Change current user's password.\nRequires authentication.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Forgot Password",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/forgot-password",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "forgot-password"
+              ],
+              "variable": []
+            },
+            "description": "Request a password reset link via email.\nAlways returns success to prevent email enumeration.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Reset Password",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/reset-password",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "reset-password"
+              ],
+              "variable": []
+            },
+            "description": "Reset password using a valid reset token.\nToken is single-use and expires in 15 minutes.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Get Current User Profile",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/me",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "me"
+              ],
+              "variable": []
+            },
+            "description": "Get current user's profile.\nRequires authentication."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Users",
+      "item": [
+        {
+          "name": "Create User",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/users",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "users"
+              ],
+              "variable": []
+            },
+            "description": "Create a new user.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "List Users",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/users",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "users"
+              ],
+              "variable": [],
+              "query": [
+                {
+                  "key": "page",
+                  "value": null,
+                  "description": "",
+                  "disabled": true
+                },
+                {
+                  "key": "size",
+                  "value": null,
+                  "description": "",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "List users based on role."
+          }
+        },
+        {
+          "name": "Get User",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/users/:user_id",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "users",
+                ":user_id"
+              ],
+              "variable": [
+                {
+                  "key": "user_id",
+                  "value": "",
+                  "description": ""
+                }
+              ]
+            },
+            "description": "Get a specific user."
+          }
+        },
+        {
+          "name": "Update User",
+          "request": {
+            "method": "PATCH",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/users/:user_id",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "users",
+                ":user_id"
+              ],
+              "variable": [
+                {
+                  "key": "user_id",
+                  "value": "",
+                  "description": ""
+                }
+              ]
+            },
+            "description": "Update a user.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Deactivate User",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/users/:user_id",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "users",
+                ":user_id"
+              ],
+              "variable": [
+                {
+                  "key": "user_id",
+                  "value": "",
+                  "description": ""
+                }
+              ]
+            },
+            "description": "Deactivate a user (soft delete)."
+          }
+        },
+        {
+          "name": "Resend User Otp",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/users/:user_id/resend-otp",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "users",
+                ":user_id",
+                "resend-otp"
+              ],
+              "variable": [
+                {
+                  "key": "user_id",
+                  "value": "",
+                  "description": ""
+                }
+              ]
+            },
+            "description": "Resend verification OTP to a user."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Tenants",
+      "item": [
+        {
+          "name": "Create Tenant",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/tenants",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "tenants"
+              ],
+              "variable": []
+            },
+            "description": "Create a new tenant.\n**Super Admin only.**",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "List Tenants",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/tenants",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "tenants"
+              ],
+              "variable": [],
+              "query": [
+                {
+                  "key": "page",
+                  "value": null,
+                  "description": "",
+                  "disabled": true
+                },
+                {
+                  "key": "size",
+                  "value": null,
+                  "description": "",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "List all tenants.\n**Super Admin only.**"
+          }
+        },
+        {
+          "name": "Get Tenant",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/tenants/:tenant_id",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "tenants",
+                ":tenant_id"
+              ],
+              "variable": [
+                {
+                  "key": "tenant_id",
+                  "value": "",
+                  "description": ""
+                }
+              ]
+            },
+            "description": "Get a specific tenant.\n**Super Admin only.**"
+          }
+        },
+        {
+          "name": "Update Tenant",
+          "request": {
+            "method": "PATCH",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/tenants/:tenant_id",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "tenants",
+                ":tenant_id"
+              ],
+              "variable": [
+                {
+                  "key": "tenant_id",
+                  "value": "",
+                  "description": ""
+                }
+              ]
+            },
+            "description": "Update a tenant.\n**Super Admin only.**",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Delete Tenant",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/tenants/:tenant_id",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "tenants",
+                ":tenant_id"
+              ],
+              "variable": [
+                {
+                  "key": "tenant_id",
+                  "value": "",
+                  "description": ""
+                }
+              ]
+            },
+            "description": "Soft delete a tenant.\n**Super Admin only.**"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Shopping Lists",
+      "item": [
+        {
+          "name": "Create Shopping List",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/shopping-lists",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "shopping-lists"
+              ],
+              "variable": []
+            },
+            "description": "Create a new shopping list.\n\nAllowed: Tenant Admin, User.\nBlocked: Super Admin.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "List Shopping Lists",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/shopping-lists",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "shopping-lists"
+              ],
+              "variable": [],
+              "query": [
+                {
+                  "key": "page",
+                  "value": null,
+                  "description": "",
+                  "disabled": true
+                },
+                {
+                  "key": "size",
+                  "value": null,
+                  "description": "",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Get all shopping lists visible to the user."
+          }
+        },
+        {
+          "name": "Get Shopping List",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/shopping-lists/:list_id",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "shopping-lists",
+                ":list_id"
+              ],
+              "variable": [
+                {
+                  "key": "list_id",
+                  "value": "",
+                  "description": ""
+                }
+              ]
+            },
+            "description": "Get a shopping list with members and items."
+          }
+        },
+        {
+          "name": "Update Shopping List",
+          "request": {
+            "method": "PATCH",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/shopping-lists/:list_id",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "shopping-lists",
+                ":list_id"
+              ],
+              "variable": [
+                {
+                  "key": "list_id",
+                  "value": "",
+                  "description": ""
+                }
+              ]
+            },
+            "description": "Update a shopping list.\nAllowed: Tenant Admin, Owner.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Delete Shopping List",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/shopping-lists/:list_id",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "shopping-lists",
+                ":list_id"
+              ],
+              "variable": [
+                {
+                  "key": "list_id",
+                  "value": "",
+                  "description": ""
+                }
+              ]
+            },
+            "description": "Delete a shopping list."
+          }
+        },
+        {
+          "name": "List Members",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/shopping-lists/:list_id/members",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "shopping-lists",
+                ":list_id",
+                "members"
+              ],
+              "variable": [
+                {
+                  "key": "list_id",
+                  "value": "",
+                  "description": ""
+                }
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": null,
+                  "description": "",
+                  "disabled": true
+                },
+                {
+                  "key": "size",
+                  "value": null,
+                  "description": "",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Get all members of a shopping list."
+          }
+        },
+        {
+          "name": "Remove Member",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/shopping-lists/:list_id/members/:user_id",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "shopping-lists",
+                ":list_id",
+                "members",
+                ":user_id"
+              ],
+              "variable": [
+                {
+                  "key": "list_id",
+                  "value": "",
+                  "description": ""
+                },
+                {
+                  "key": "user_id",
+                  "value": "",
+                  "description": ""
+                }
+              ]
+            },
+            "description": "Remove a member from the shopping list."
+          }
+        },
+        {
+          "name": "Update Member Permissions",
+          "request": {
+            "method": "PATCH",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/shopping-lists/:list_id/members/:user_id/permissions",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "shopping-lists",
+                ":list_id",
+                "members",
+                ":user_id",
+                "permissions"
+              ],
+              "variable": [
+                {
+                  "key": "list_id",
+                  "value": "",
+                  "description": ""
+                },
+                {
+                  "key": "user_id",
+                  "value": "",
+                  "description": ""
+                }
+              ]
+            },
+            "description": "Update a member's permission flags.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Leave List",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/shopping-lists/:list_id/members/me",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "shopping-lists",
+                ":list_id",
+                "members",
+                "me"
+              ],
+              "variable": [
+                {
+                  "key": "list_id",
+                  "value": "",
+                  "description": ""
+                }
+              ]
+            },
+            "description": "Leave a shopping list.\nMembers only. Owner cannot leave their own list."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Items",
+      "item": [
+        {
+          "name": "Add Item",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/shopping-lists/:list_id/items",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "shopping-lists",
+                ":list_id",
+                "items"
+              ],
+              "variable": [
+                {
+                  "key": "list_id",
+                  "value": "",
+                  "description": ""
+                }
+              ]
+            },
+            "description": "Add an item to a shopping list.\nAllowed: Tenant Admin, Owner, Member (if can_add_item). Blocked: Super Admin.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Get Items",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/shopping-lists/:list_id/items",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "shopping-lists",
+                ":list_id",
+                "items"
+              ],
+              "variable": [
+                {
+                  "key": "list_id",
+                  "value": "",
+                  "description": ""
+                }
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": null,
+                  "description": "",
+                  "disabled": true
+                },
+                {
+                  "key": "size",
+                  "value": null,
+                  "description": "",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Get all items in a shopping list.\nAllowed: Tenant Admin, Owner, Member (if can_view). Blocked: Super Admin."
+          }
+        },
+        {
+          "name": "Get Item",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/shopping-lists/:list_id/items/:item_id",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "shopping-lists",
+                ":list_id",
+                "items",
+                ":item_id"
+              ],
+              "variable": [
+                {
+                  "key": "list_id",
+                  "value": "",
+                  "description": ""
+                },
+                {
+                  "key": "item_id",
+                  "value": "",
+                  "description": ""
+                }
+              ]
+            },
+            "description": "Get a specific item from a shopping list.\nValidates item belongs to the list."
+          }
+        },
+        {
+          "name": "Update Item",
+          "request": {
+            "method": "PATCH",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/shopping-lists/:list_id/items/:item_id",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "shopping-lists",
+                ":list_id",
+                "items",
+                ":item_id"
+              ],
+              "variable": [
+                {
+                  "key": "list_id",
+                  "value": "",
+                  "description": ""
+                },
+                {
+                  "key": "item_id",
+                  "value": "",
+                  "description": ""
+                }
+              ]
+            },
+            "description": "Update an item in a shopping list.\nValidates item belongs to the list.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Delete Item",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/shopping-lists/:list_id/items/:item_id",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "shopping-lists",
+                ":list_id",
+                "items",
+                ":item_id"
+              ],
+              "variable": [
+                {
+                  "key": "list_id",
+                  "value": "",
+                  "description": ""
+                },
+                {
+                  "key": "item_id",
+                  "value": "",
+                  "description": ""
+                }
+              ]
+            },
+            "description": "Delete an item from a shopping list.\nValidates item belongs to the list."
+          }
+        },
+        {
+          "name": "Update Item Status",
+          "request": {
+            "method": "PATCH",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/shopping-lists/:list_id/items/:item_id/status",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "shopping-lists",
+                ":list_id",
+                "items",
+                ":item_id",
+                "status"
+              ],
+              "variable": [
+                {
+                  "key": "list_id",
+                  "value": "",
+                  "description": ""
+                },
+                {
+                  "key": "item_id",
+                  "value": "",
+                  "description": ""
+                }
+              ]
+            },
+            "description": "Quick update for item status (mark as purchased/pending).",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Invitations",
+      "item": [
+        {
+          "name": "Get My Invites",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/shopping-lists/invites",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "shopping-lists",
+                "invites"
+              ],
+              "variable": [],
+              "query": [
+                {
+                  "key": "status",
+                  "value": null,
+                  "description": "Filter by status: PENDING, ACCEPTED, REJECTED, CANCELLED, EXPIRED",
+                  "disabled": true
+                },
+                {
+                  "key": "page",
+                  "value": null,
+                  "description": "",
+                  "disabled": true
+                },
+                {
+                  "key": "size",
+                  "value": null,
+                  "description": "",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Get all invitations for the current user across all lists.\nSupports filtering by status."
+          }
+        },
+        {
+          "name": "Invite Member",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/shopping-lists/:list_id/invite",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "shopping-lists",
+                ":list_id",
+                "invite"
+              ],
+              "variable": [
+                {
+                  "key": "list_id",
+                  "value": "",
+                  "description": ""
+                }
+              ]
+            },
+            "description": "Invite a user to join the shopping list.\nAllowed: Tenant Admin, Owner.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Get List Invites",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/shopping-lists/:list_id/invites",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "shopping-lists",
+                ":list_id",
+                "invites"
+              ],
+              "variable": [
+                {
+                  "key": "list_id",
+                  "value": "",
+                  "description": ""
+                }
+              ],
+              "query": [
+                {
+                  "key": "status",
+                  "value": null,
+                  "description": "Filter by status: PENDING, ACCEPTED, REJECTED, CANCELLED, EXPIRED",
+                  "disabled": true
+                },
+                {
+                  "key": "page",
+                  "value": null,
+                  "description": "",
+                  "disabled": true
+                },
+                {
+                  "key": "size",
+                  "value": null,
+                  "description": "",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Get all invitations for a specific shopping list.\nAllowed: Owner, Tenant Admin."
+          }
+        },
+        {
+          "name": "Accept Invitation",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/invitations/accept",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "invitations",
+                "accept"
+              ],
+              "variable": []
+            },
+            "description": "Accept a shopping list invitation.\nRequires authentication. Invitation email must match logged-in user's email.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Reject Invitation",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/invitations/reject",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "invitations",
+                "reject"
+              ],
+              "variable": []
+            },
+            "description": "Reject a shopping list invitation.\nDoes not require authentication.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Cancel Invitation",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/invitations/:invite_id",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "invitations",
+                ":invite_id"
+              ],
+              "variable": [
+                {
+                  "key": "invite_id",
+                  "value": "",
+                  "description": ""
+                }
+              ]
+            },
+            "description": "Cancel a pending invitation.\nOnly the list owner or tenant admin can cancel."
+          }
+        },
+        {
+          "name": "Resend Invitation",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/invitations/:invite_id/resend",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "invitations",
+                ":invite_id",
+                "resend"
+              ],
+              "variable": [
+                {
+                  "key": "invite_id",
+                  "value": "",
+                  "description": ""
+                }
+              ]
+            },
+            "description": "Resend a pending invitation \u2014 rotates token and resets expiry.\nOnly the list owner or tenant admin can resend."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Chat",
+      "item": [
+        {
+          "name": "Get Chat Messages",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/shopping-lists/:list_id/messages",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "shopping-lists",
+                ":list_id",
+                "messages"
+              ],
+              "variable": [
+                {
+                  "key": "list_id",
+                  "value": "",
+                  "description": ""
+                }
+              ],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": null,
+                  "description": "",
+                  "disabled": true
+                },
+                {
+                  "key": "after",
+                  "value": null,
+                  "description": "ISO timestamp for cursor pagination",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Load chat history for a shopping list.\nOnly ACCEPTED members can view messages."
+          }
+        },
+        {
+          "name": "Send Chat Message",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/shopping-lists/:list_id/messages",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "shopping-lists",
+                ":list_id",
+                "messages"
+              ],
+              "variable": [
+                {
+                  "key": "list_id",
+                  "value": "",
+                  "description": ""
+                }
+              ]
+            },
+            "description": "Send a chat message to a shopping list (REST fallback).\nOnly ACCEPTED members can send messages.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Delete Chat Message",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/shopping-lists/:list_id/messages/:message_id",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "shopping-lists",
+                ":list_id",
+                "messages",
+                ":message_id"
+              ],
+              "variable": [
+                {
+                  "key": "list_id",
+                  "value": "",
+                  "description": ""
+                },
+                {
+                  "key": "message_id",
+                  "value": "",
+                  "description": ""
+                }
+              ]
+            },
+            "description": "Soft-delete a chat message.\nOnly the sender or list owner can delete."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Notifications",
+      "item": [
+        {
+          "name": "List Notifications",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/notifications",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "notifications"
+              ],
+              "variable": [],
+              "query": [
+                {
+                  "key": "is_read",
+                  "value": null,
+                  "description": "Filter by read/unread status",
+                  "disabled": true
+                },
+                {
+                  "key": "page",
+                  "value": null,
+                  "description": "",
+                  "disabled": true
+                },
+                {
+                  "key": "size",
+                  "value": null,
+                  "description": "",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Get notifications for the current user."
+          }
+        },
+        {
+          "name": "Mark Notification Read",
+          "request": {
+            "method": "PATCH",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/notifications/:notification_id/read",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "notifications",
+                ":notification_id",
+                "read"
+              ],
+              "variable": [
+                {
+                  "key": "notification_id",
+                  "value": "",
+                  "description": ""
+                }
+              ]
+            },
+            "description": "Mark a notification as read."
+          }
+        },
+        {
+          "name": "Mark All Notifications Read",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/notifications/read-all",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "notifications",
+                "read-all"
+              ],
+              "variable": []
+            },
+            "description": "Mark all unread notifications as read."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Health",
+      "item": [
+        {
+          "name": "Health Check",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/health",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "health"
+              ],
+              "variable": []
+            },
+            "description": "Basic liveness check."
+          }
+        },
+        {
+          "name": "Readiness Check",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/health/ready",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "health",
+                "ready"
+              ],
+              "variable": []
+            },
+            "description": "Readiness check including database and Redis connectivity."
+          }
+        }
+      ]
+    }
+  ],
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:8000",
+      "type": "string"
+    },
+    {
+      "key": "token",
+      "value": "",
+      "type": "string"
+    }
+  ],
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{token}}",
+        "type": "string"
+      }
+    ]
+  }
+}

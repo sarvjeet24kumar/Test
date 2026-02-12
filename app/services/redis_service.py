@@ -127,20 +127,6 @@ class RedisService:
         key = f"blacklist:access:{token_id}"
         return await client.exists(key) > 0
 
-    # Pub/Sub for WebSocket events
-    @classmethod
-    async def publish_event(cls, channel: str, message: str) -> None:
-        """Publish event to Redis channel."""
-        client = await cls.get_client()
-        await client.publish(channel, message)
-
-    @classmethod
-    async def subscribe(cls, *channels: str):
-        """Subscribe to Redis channels."""
-        client = await cls.get_client()
-        pubsub = client.pubsub()
-        await pubsub.subscribe(*channels)
-        return pubsub
 
     # Password Reset Token Operations
     @classmethod

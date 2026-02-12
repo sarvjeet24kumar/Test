@@ -26,7 +26,9 @@ from app.models.user import User
 from app.schemas.shopping_list import ShoppingListCreate, ShoppingListUpdate
 from app.schemas.item import ItemCreate, ItemUpdate
 from app.services.redis_service import RedisService
-from app.common.enums import UserRole, MemberRole, ItemStatus
+from app.services.notification_service import NotificationService
+from app.websocket.manager import manager
+from app.common.enums import UserRole, MemberRole, ItemStatus, NotificationType
 from app.common.constants import (
     WS_EVENT_ITEM_ADDED,
     WS_EVENT_ITEM_UPDATED,
@@ -155,14 +157,53 @@ class ListService:
 
     async def get_list(
         self, list_id: UUID, user: User
-    ) -> ShoppingList:
+    ) -> dict:
         """
         Get a shopping list with access check.
         Allowed: Tenant Admin (any list in tenant), Owner, Member.
         Blocked: Super Admin, non-members.
         """
-        shopping_list, _ = await self._get_list_with_access(list_id, user)
-        return shopping_list
+        shopping_list, membership = await self._get_list_with_access(list_id, user)
+        
+        # Determine role for response
+        role = "MEMBER"
+        if user.role == UserRole.TENANT_ADMIN:
+            role = "TENANT_ADMIN"
+        if membership:
+            role = membership.role.value
+
+        # Build detailed response dict
+        return {
+            "id": shopping_list.id,
+            "tenant_id": shopping_list.tenant_id,
+            "owner_id": shopping_list.owner_id,
+            "name": shopping_list.name,
+            "created_at": shopping_list.created_at,
+            "updated_at": shopping_list.updated_at,
+            "item_count": len(shopping_list.items),
+            "pending_count": sum(1 for i in shopping_list.items if i.status == ItemStatus.PENDING),
+            "purchased_count": sum(1 for i in shopping_list.items if i.status == ItemStatus.PURCHASED),
+            "members": [
+                {
+                    "user_id": m.user_id,
+                    "username": m.user.username if m.user else "Unknown",
+                    "role": m.role.value,
+                    "joined_at": m.joined_at,
+                }
+                for m in shopping_list.members
+            ],
+            "items": [
+                {
+                    "id": i.id,
+                    "name": i.name,
+                    "quantity": i.quantity,
+                    "status": i.status.value,
+                    "added_by": i.added_by,
+                    "created_at": i.created_at,
+                }
+                for i in shopping_list.items
+            ]
+        }
 
     async def get_user_lists(
         self, user: User, skip: int = 0, limit: int = DEFAULT_PAGE_SIZE
@@ -272,6 +313,18 @@ class ListService:
             },
         )
 
+        # Create Persistent Notifications for all other members
+        notification_service = NotificationService(self.db)
+        await notification_service.notify_list_members(
+            list_id=list_id,
+            notification_type=NotificationType.LIST_UPDATED,
+            payload={
+                "name": shopping_list.name,
+                "updated_by": user.username,
+            },
+            exclude_user_id=user.id,
+        )
+
         return shopping_list
 
     async def delete_list(self, list_id: UUID, user: User) -> bool:
@@ -301,7 +354,7 @@ class ListService:
 
     async def get_members(
         self, list_id: UUID, user: User, skip: int = 0, limit: int = DEFAULT_PAGE_SIZE
-    ) -> tuple[List[ShoppingListMember], int]:
+    ) -> tuple[List[dict], int]:
         """
         Get all members of a shopping list.
         Allowed: Tenant Admin, Owner, Member. Blocked: Super Admin.
@@ -320,9 +373,36 @@ class ListService:
             .offset(skip)
             .limit(limit)
         )
-        items = list(result.scalars().all())
+        members = result.scalars().all()
 
-        return items, total
+        return [
+            {
+                "id": m.id,
+                "user_id": m.user_id,
+                "username": m.user.username if m.user else "Unknown",
+                "email": m.user.email if m.user else "Unknown",
+                "role": m.role.value,
+                "can_view": m.can_view,
+                "can_add_item": m.can_add_item,
+                "can_update_item": m.can_update_item,
+                "can_delete_item": m.can_delete_item,
+                "joined_at": m.joined_at,
+            }
+            for m in members
+        ], total
+
+    async def notify_member_removed(self, list_id: UUID, member_user_id: UUID, user: User, shopping_list_name: str):
+        """Helper to create notification when a member is removed."""
+        notification_service = NotificationService(self.db)
+        await notification_service.create_notification(
+            user_id=member_user_id,
+            notification_type=NotificationType.MEMBER_REMOVED,
+            payload={
+                "list_name": shopping_list_name,
+                "remover_username": user.username,
+            },
+            shopping_list_id=list_id,
+        )
 
     async def remove_member(
         self, list_id: UUID, member_user_id: UUID, user: User
@@ -362,6 +442,9 @@ class ListService:
             {"user_id": str(member_user_id)},
         )
 
+        # Create Persistent Notification for the removed member
+        await self.notify_member_removed(list_id, member_user_id, user, shopping_list.name)
+
         return True
 
     async def leave_list(self, list_id: UUID, user: User) -> bool:
@@ -393,6 +476,19 @@ class ListService:
                 list_id,
                 WS_EVENT_MEMBER_LEFT,
                 {"user_id": str(user.id)},
+            )
+
+            # Create Persistent Notifications for all other members
+            notification_service = NotificationService(self.db)
+            await notification_service.notify_list_members(
+                list_id=list_id,
+                notification_type=NotificationType.LIST_UPDATED,
+                payload={
+                    "username": user.username,
+                    "event": "member_left",
+                    "list_name": shopping_list.name,
+                },
+                exclude_user_id=user.id,
             )
 
         return True
@@ -515,11 +611,24 @@ class ListService:
             },
         )
 
+        # Create Persistent Notifications for all other members
+        notification_service = NotificationService(self.db)
+        await notification_service.notify_list_members(
+            list_id=list_id,
+            notification_type=NotificationType.ITEM_ADDED,
+            payload={
+                "item_name": item.name,
+                "added_by": user.username,
+                "list_name": shopping_list.name,
+            },
+            exclude_user_id=user.id,
+        )
+
         return item
 
     async def get_items(
         self, list_id: UUID, user: User, skip: int = 0, limit: int = DEFAULT_PAGE_SIZE
-    ) -> tuple[List[Item], int]:
+    ) -> tuple[List[dict], int]:
         """
         Get all items in a shopping list.
         Allowed: Tenant Admin, Owner, Member (if can_view). Blocked: Super Admin.
@@ -539,9 +648,19 @@ class ListService:
             .offset(skip)
             .limit(limit)
         )
-        items = list(result.scalars().all())
+        items = result.scalars().all()
 
-        return items, total
+        return [
+            {
+                "id": i.id,
+                "name": i.name,
+                "quantity": i.quantity,
+                "status": i.status.value,
+                "added_by": i.added_by,
+                "created_at": i.created_at,
+            }
+            for i in items
+        ], total
 
     async def get_item(
         self, list_id: UUID, item_id: UUID, user: User
@@ -612,6 +731,21 @@ class ListService:
             },
         )
 
+        # Create Persistent Notifications for all other members
+        notification_service = NotificationService(self.db)
+        notif_type = NotificationType.ITEM_PURCHASED if item.status == ItemStatus.PURCHASED else NotificationType.ITEM_UPDATED
+        await notification_service.notify_list_members(
+            list_id=item.shopping_list_id,
+            notification_type=notif_type,
+            payload={
+                "item_name": item.name,
+                "updated_by": user.username,
+                "status": item.status.value,
+                "list_name": shopping_list.name,
+            },
+            exclude_user_id=user.id,
+        )
+
         return item
 
     async def delete_item(self, item_id: UUID, user: User) -> bool:
@@ -642,6 +776,18 @@ class ListService:
             list_id,
             WS_EVENT_ITEM_DELETED,
             {"id": str(item_id)},
+        )
+
+        # Create Persistent Notifications for all other members
+        notification_service = NotificationService(self.db)
+        await notification_service.notify_list_members(
+            list_id=list_id,
+            notification_type=NotificationType.ITEM_DELETED,
+            payload={
+                "deleted_by": user.username,
+                "list_name": shopping_list.name,
+            },
+            exclude_user_id=user.id,
         )
 
         return True
@@ -691,6 +837,21 @@ class ListService:
             },
         )
 
+        # Create Persistent Notifications for all other members
+        notification_service = NotificationService(self.db)
+        notif_type = NotificationType.ITEM_PURCHASED if item.status == ItemStatus.PURCHASED else NotificationType.ITEM_UPDATED
+        await notification_service.notify_list_members(
+            list_id=list_id,
+            notification_type=notif_type,
+            payload={
+                "item_name": item.name,
+                "updated_by": user.username,
+                "status": item.status.value,
+                "list_name": shopping_list.name,
+            },
+            exclude_user_id=user.id,
+        )
+
         return item
 
     async def delete_item_scoped(
@@ -726,6 +887,18 @@ class ListService:
             {"id": str(item_id)},
         )
 
+        # Create Persistent Notifications for all other members
+        notification_service = NotificationService(self.db)
+        await notification_service.notify_list_members(
+            list_id=list_id,
+            notification_type=NotificationType.ITEM_DELETED,
+            payload={
+                "deleted_by": user.username,
+                "list_name": shopping_list.name,
+            },
+            exclude_user_id=user.id,
+        )
+
         return True
 
     # ==================== Helper Methods ====================
@@ -733,11 +906,5 @@ class ListService:
     async def _publish_event(
         self, list_id: UUID, event_type: str, data: dict
     ) -> None:
-        """Publish event to Redis for WebSocket broadcast."""
-        channel = f"{REDIS_CHANNEL_LIST}:{list_id}"
-        message = json.dumps({
-            "event": event_type,
-            "list_id": str(list_id),
-            "data": data,
-        })
-        await RedisService.publish_event(channel, message)
+        """Broadcast event directly to connected subscribers."""
+        await manager.broadcast_event(str(list_id), event_type, data)

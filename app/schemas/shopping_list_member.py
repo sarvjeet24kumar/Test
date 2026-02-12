@@ -7,7 +7,7 @@ Request and response schemas for list membership management.
 from datetime import datetime
 from typing import Optional
 from uuid import UUID
-from pydantic import BaseModel, Field, EmailStr
+from pydantic import BaseModel, Field, EmailStr, ConfigDict
 
 from app.common.enums import MemberRole
 
@@ -25,8 +25,7 @@ class MemberResponse(BaseModel):
     can_delete_item: bool = False
     joined_at: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class UpdateMemberPermissions(BaseModel):

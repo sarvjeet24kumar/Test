@@ -104,5 +104,21 @@ class ShoppingListInvite(BaseModel):
         back_populates="sent_invitations"
     )
 
+    @property
+    def list_name(self) -> Optional[str]:
+        return self.shopping_list.name if self.shopping_list else None
+
+    @property
+    def invited_email(self) -> Optional[str]:
+        return self.invited_user.email if self.invited_user else None
+
+    @property
+    def invited_username(self) -> Optional[str]:
+        return self.invited_user.username if self.invited_user else None
+
+    @property
+    def invited_by_username(self) -> Optional[str]:
+        return self.invited_by_user.username if self.invited_by_user else None
+
     def __repr__(self) -> str:
         return f"<ShoppingListInvite(id={self.id}, list_id={self.shopping_list_id}, status={self.status})>"

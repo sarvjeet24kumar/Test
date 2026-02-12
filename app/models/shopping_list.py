@@ -4,7 +4,7 @@ Shopping List Model
 Represents a shopping list owned by a user within a tenant.
 """
 
-from typing import TYPE_CHECKING, List
+from typing import TYPE_CHECKING, List, Optional
 import uuid
 
 from sqlalchemy import String, ForeignKey, Index
@@ -93,6 +93,37 @@ class ShoppingList(BaseModel):
         cascade="all, delete-orphan",
         lazy="selectin",
     )
+
+    @property
+    def item_count(self) -> int:
+        return len(self.items) if self.items else 0
+
+    @property
+    def pending_count(self) -> int:
+        if not self.items:
+            return 0
+        from app.common.enums import ItemStatus
+        return sum(1 for item in self.items if item.status == ItemStatus.PENDING)
+
+    @property
+    def purchased_count(self) -> int:
+        if not self.items:
+            return 0
+        from app.common.enums import ItemStatus
+        return sum(1 for item in self.items if item.status == ItemStatus.PURCHASED)
+
+    @property
+    def member_count(self) -> int:
+        return len(self.members) if self.members else 0
+
+    # This will be manually attached by the service for summary responses
+    @property
+    def role(self) -> str:
+        return getattr(self, "_role", "MEMBER") or "MEMBER"
+
+    @role.setter
+    def role(self, value: str):
+        self._role = value
 
     def __repr__(self) -> str:
         return f"<ShoppingList(id={self.id}, name='{self.name}')>"

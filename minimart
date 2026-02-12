@@ -1,0 +1,71 @@
+CREATE DATABASE sarvjeetkumar;
+\l
+brew uninstall --cask dbeaver-community
+ls
+\q
+\q
+\q
+CREATE ROLE postgres WITH LOGIN sarvjeet PASSWORD '1234';
+CREATE ROLE postgres WITH LOGIN SUPERUSER PASSWORD 'yourpassword';
+\q
+yourpassword
+create databse test
+\l
+\q
+CREATE USER sarvjeet WITH PASSWORD '1234';
+\c newDB
+create schema newschema AUTHORIZATION sarvjeet;
+    ALTER ROLE sarvjeet set  ckient-encoding To 'utf-8';
+    ALTER ROLE sarvjeet set  client-encoding To 'utf-8';
+    ALTER ROLE sarvjeet set  client_encoding To 'utf-8';
+    ALTER ROLE sarvjeet set  default_transaction_isolatioin  To 'read committed';
+    ALTER ROLE sarvjeet set  default_transaction_isolation  To 'read committed';
+    ALTER ROLE sarvjeet set  timezone  To 'UTC';
+\dt
+\dt
+DROP DATABASE campus_connect;
+CREATE DATABASE campus_connect;
+DROP DATABASE campus_connect;
+\q
+CREATE DATABASE test_campus_connect;
+\q
+\q
+DROP DATABASE book_shelf;
+DROP DATABASE bookshelf;
+CREATE DATABASE bookshelf;
+\q
+SELECT column_name
+FROM information_schema.columns
+WHERE table_name = 'books';
+dropdb bookshelf
+createdb bookshelf
+uv run python manage.py migrate
+\q
+\d books;
+uv run python manage.py dbshell
+DROP TABLE IF EXISTS book_genres CASCADE;
+DROP TABLE IF EXISTS books CASCADE;
+DROP TABLE IF EXISTS genres CASCADE;
+DROP TABLE IF EXISTS book_genres CASCADE;
+DROP TABLE IF EXISTS books CASCADE;
+DROP TABLE IF EXISTS genres CASCADE;
+\q
+\d books;
+\q
+DROP INDEX IF EXISTS uq_users_global_email;
+SELECT email, tenant_id FROM users WHERE email='abc122@yopmail.com';
+\c minimart
+DROP INDEX IF EXISTS uq_users_global_email;
+SELECT email, tenant_id FROM users WHERE email='abc122@yopmail.com';
+\d
+\q
+\c minimart
+\d shopping_list_members
+\q
+\c minimart
+\d shopping_list_members
+ALTER TABLE shopping_list_members
+ALTER COLUMN joined_at SET DEFAULT now();
+\d shopping_list_members
+\q
+\s minimart

@@ -124,6 +124,10 @@ class User(BaseModel):
         lazy="selectin",
     )
 
+    @property
+    def tenant_name(self) -> Optional[str]:
+        return self.tenant.name if self.tenant else None
+
     def __repr__(self) -> str:
         return f"<User(id={self.id}, username='{self.username}', role={self.role})>"
 

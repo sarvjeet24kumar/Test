@@ -7,7 +7,7 @@ Request and response schemas for tenant management.
 from datetime import datetime
 from typing import Optional
 from uuid import UUID
-from pydantic import BaseModel, Field, EmailStr
+from pydantic import BaseModel, Field, EmailStr,ConfigDict
 
 
 class TenantBase(BaseModel):
@@ -42,9 +42,7 @@ class TenantResponse(TenantBase):
     updated_at: datetime
     deleted_at: Optional[datetime] = None
 
-    class Config:
-        from_attributes = True
-
+    model_config = ConfigDict(from_attributes=True)
 
 # Forward reference for circular import
 class UserBriefResponse(BaseModel):
@@ -54,5 +52,4 @@ class UserBriefResponse(BaseModel):
     email: str
     username: str
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
