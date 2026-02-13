@@ -53,7 +53,6 @@ class User(BaseModel):
         # Standard tenant-scoped uniqueness
         UniqueConstraint("tenant_id", "username", name="uq_users_tenant_username"),
         UniqueConstraint("tenant_id", "email", name="uq_users_tenant_email"),
-        
         Index("idx_users_tenant_id", "tenant_id"),
     )
 
@@ -64,8 +63,12 @@ class User(BaseModel):
     )
     first_name: Mapped[str] = mapped_column(String(MAX_LENGTH_NAME), nullable=False)
     last_name: Mapped[str] = mapped_column(String(MAX_LENGTH_NAME), nullable=False)
-    username: Mapped[str] = mapped_column(String(MAX_LENGTH_USERNAME), nullable=False, index=True)
-    email: Mapped[str] = mapped_column(String(MAX_LENGTH_EMAIL), nullable=False, index=True)
+    username: Mapped[str] = mapped_column(
+        String(MAX_LENGTH_USERNAME), nullable=False, index=True
+    )
+    email: Mapped[str] = mapped_column(
+        String(MAX_LENGTH_EMAIL), nullable=False, index=True
+    )
     password: Mapped[str] = mapped_column(String(MAX_LENGTH_PASSWORD), nullable=False)
     role: Mapped[UserRole] = mapped_column(
         ENUM(UserRole, name="user_role", create_type=True),
@@ -75,7 +78,7 @@ class User(BaseModel):
     is_email_verified: Mapped[bool] = mapped_column(
         Boolean, default=False, nullable=False
     )
-    is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    is_active: Mapped[bool] = mapped_column(Boolean, nullable=False)
 
     # Relationships
     tenant: Mapped["Tenant"] = relationship("Tenant", back_populates="users")

@@ -8,11 +8,12 @@ from datetime import datetime
 from typing import Optional, List
 from uuid import UUID
 from pydantic import BaseModel, Field, ConfigDict
+from app.schemas.common import NormalizedModel
 
 from app.common.enums import MemberRole, ItemStatus
 
 
-class ShoppingListBase(BaseModel):
+class ShoppingListBase(NormalizedModel):
     """Base shopping list schema."""
 
     name: str = Field(..., min_length=1, max_length=255)
@@ -24,7 +25,7 @@ class ShoppingListCreate(ShoppingListBase):
     pass
 
 
-class ShoppingListUpdate(BaseModel):
+class ShoppingListUpdate(NormalizedModel):
     """Shopping list update schema."""
 
     name: Optional[str] = Field(None, min_length=1, max_length=255)
@@ -41,10 +42,11 @@ class MemberBrief(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
-class ShoppingListResponse(ShoppingListBase):
+class ShoppingListResponse(NormalizedModel):
     """Shopping list response schema."""
 
     id: UUID
+    name: str
     tenant_id: UUID
     owner_id: UUID
     created_at: datetime

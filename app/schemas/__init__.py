@@ -17,7 +17,7 @@ from app.schemas.user import (
     UserCreate,
     UserUpdate,
     UserResponse,
-    UserWithTenantResponse,
+    UserAdminResponse,
 )
 from app.schemas.shopping_list import (
     ShoppingListCreate,
@@ -64,7 +64,7 @@ __all__ = [
     "UserCreate",
     "UserUpdate",
     "UserResponse",
-    "UserWithTenantResponse",
+    "UserAdminResponse",
     # Shopping List
     "ShoppingListCreate",
     "ShoppingListUpdate",

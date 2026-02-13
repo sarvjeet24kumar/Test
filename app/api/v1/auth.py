@@ -27,10 +27,15 @@ from app.schemas.auth import (
     PasswordResetRequest,
     PasswordResetConfirm,
 )
-from app.schemas.user import ChangePasswordRequest, UserProfileResponse
+from app.schemas.user import ChangePasswordRequest
+from app.core.config import settings
+from sqlalchemy import select
+from app.models.tenant import Tenant
 from app.schemas.common import MessageResponse
 from app.models.user import User
 from app.services.auth_service import AuthService
+from app.exceptions import ValidationException
+
 
 router = APIRouter()
 security = HTTPBearer(auto_error=True)
@@ -51,33 +56,37 @@ async def login(
     Authenticate user and return JWT tokens.
     """
     auth_service = AuthService(db)
-    return await auth_service.login(data.email, data.password, tenant_id, background_tasks)
+    return await auth_service.login(
+        **data.model_dump(), tenant_id=tenant_id, background_tasks=background_tasks
+    )
 
 
 @router.post(
     "/signup",
-    response_model=SignupResponse,
+    response_model=MessageResponse,
     status_code=status.HTTP_201_CREATED,
 )
 async def signup(
     data: SignupRequest,
     db: Annotated[AsyncSession, Depends(get_db)],
     background_tasks: BackgroundTasks,
-    tenant_id: Annotated[Optional[UUID], Depends(get_tenant_id)] = None,
+    tenant_id: Annotated[UUID, Depends(get_tenant_id)],
 ):
     """
     Register a new user account.
     """
+    if not tenant_id:
+        from app.exceptions import ValidationException
+
+        raise ValidationException("Tenant-ID header is required for signup")
+
     auth_service = AuthService(db)
-    return await auth_service.signup(
-        email=data.email,
-        username=data.username,
-        first_name=data.first_name,
-        last_name=data.last_name,
-        password=data.password,
+    await auth_service.signup(
+        **data.model_dump(),
         tenant_id=tenant_id,
         background_tasks=background_tasks,
     )
+    return MessageResponse(message="Signup successful. Please verify your email.")
 
 
 @router.post(
@@ -108,13 +117,16 @@ async def logout(
 async def verify_email(
     data: VerifyEmailRequest,
     db: Annotated[AsyncSession, Depends(get_db)],
-    tenant_id: Annotated[Optional[UUID], Depends(get_tenant_id)] = None,
+    tenant_id: Annotated[UUID, Depends(get_tenant_id)],
 ):
     """
     Verify email address using OTP.
     """
+    if not tenant_id:
+        raise ValidationException("Tenant-ID header is required")
+
     auth_service = AuthService(db)
-    await auth_service.verify_email(data.email, data.otp, tenant_id)
+    await auth_service.verify_email(**data.model_dump(), tenant_id=tenant_id)
     return MessageResponse(message="Email verified successfully")
 
 
@@ -127,14 +139,16 @@ async def resend_otp(
     data: ResendOtpRequest,
     db: Annotated[AsyncSession, Depends(get_db)],
     background_tasks: BackgroundTasks,
-    tenant_id: Annotated[Optional[UUID], Depends(get_tenant_id)] = None,
+    tenant_id: Annotated[UUID, Depends(get_tenant_id)],
 ):
     """
     Resend OTP for email verification.
     """
+    if not tenant_id:
+        raise ValidationException("Tenant-ID header is required ")
+
     auth_service = AuthService(db)
     await auth_service.send_verification_otp(data.email, tenant_id, background_tasks)
-    from app.core.config import settings
     return OTPResponse(
         message="OTP sent successfully",
         expires_in=settings.otp_expire_minutes * 60,
@@ -155,7 +169,6 @@ async def refresh_tokens(
     """
     auth_service = AuthService(db)
     access_token, refresh_token = await auth_service.refresh_tokens(data.refresh_token)
-    from app.core.config import settings
     return LoginResponse(
         access_token=access_token,
         refresh_token=refresh_token,
@@ -221,36 +234,7 @@ async def reset_password(
     Token is single-use and expires in 15 minutes.
     """
     auth_service = AuthService(db)
-    await auth_service.reset_password(data.token, data.new_password, data.confirm_password)
+    await auth_service.reset_password(
+        data.token, data.new_password, data.confirm_password
+    )
     return MessageResponse(message="Password has been reset successfully")
-
-
-@router.get(
-    "/me",
-    response_model=UserProfileResponse,
-    status_code=status.HTTP_200_OK,
-)
-async def get_current_user_profile(
-    current_user: Annotated[User, Depends(get_current_user)],
-    db: Annotated[AsyncSession, Depends(get_db)],
-):
-    """
-    Get current user's profile.
-    Requires authentication.
-    """
-    from sqlalchemy import select
-    from app.models.tenant import Tenant
-    
-    tenant_name = "Global"
-    if current_user.tenant_id:
-        result = await db.execute(
-            select(Tenant).where(Tenant.id == current_user.tenant_id)
-        )
-        tenant = result.scalar_one_or_none()
-        if tenant:
-            tenant_name = tenant.name
-        else:
-            tenant_name = "Deleted Tenant"
-    
-    current_user.tenant_name = tenant_name
-    return current_user

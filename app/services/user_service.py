@@ -80,10 +80,10 @@ class UserService:
                     User.is_active == True,
                     User.deleted_at.is_(None),
                 )
-            )   
+            )
         )
         if result.scalar_one_or_none():
-            raise ConflictException(f"Username '{data.username}' already exists ")
+            raise ConflictException(f"Username  already exists ")
 
         # Check for existing email (scoped to tenant + globally for SuperAdmins)
         result = await self.db.execute(
@@ -95,9 +95,9 @@ class UserService:
             )
         )
         if result.scalar_one_or_none():
-            raise ConflictException(f"Email '{data.email}' already exists ")
+            raise ConflictException(f"Email already exists ")
 
-        # Create user
+        # Create user as inactive
         user = User(
             tenant_id=target_tenant_id,
             first_name=data.first_name,
@@ -107,7 +107,7 @@ class UserService:
             password=hash_password(data.password),
             role=role,
             is_email_verified=False,
-            is_active=True,
+            is_active=False,
         )
         self.db.add(user)
         try:
@@ -342,7 +342,7 @@ class UserService:
         Deactivate a user (soft delete).
         """
         user = await self.get_user(user_id, requester)
-        if not user.is_active or user.deleted_at is not None:
+        if not user.is_active and user.deleted_at is not None:
             raise ConflictException("User is already deactivated")
         if requester.id == user.id:
             raise ForbiddenException("You cannot deactivate your own account")

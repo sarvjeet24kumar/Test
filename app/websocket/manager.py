@@ -6,7 +6,7 @@ Simplified for single-server deployment (Redis Pub/Sub removed).
 """
 
 import json
-from typing import Dict, Set, Optional
+from typing import Dict, Set, Optional, List
 from uuid import UUID
 
 from fastapi import WebSocket, WebSocketDisconnect
@@ -96,7 +96,7 @@ class ConnectionManager:
         if user_id in self.user_subscriptions:
             self.user_subscriptions[user_id].discard(list_id)
 
-    async def broadcast_to_list(self, list_id: str, message: dict) -> None:
+    async def broadcast_to_list(self, list_id: str, message: dict, exclude_user_id: Optional[str] = None) -> None:
         """Broadcast a message to all subscribers of a list across all their connections."""
         if list_id not in self.list_subscribers:
             return
@@ -105,6 +105,9 @@ class ConnectionManager:
         user_ids = list(self.list_subscribers[list_id])
         
         for user_id in user_ids:
+            if exclude_user_id and user_id == exclude_user_id:
+                continue
+
             if user_id in self.active_connections:
                 dead_sockets = []
                 # Create a copy of keys to avoid modification issues
@@ -121,7 +124,7 @@ class ConnectionManager:
                 for ws in dead_sockets:
                     await self.disconnect(user_id, ws)
 
-    async def broadcast_event(self, list_id: str, event_type: str, data: dict) -> None:
+    async def broadcast_event(self, list_id: str, event_type: str, data: dict, exclude_user_id: Optional[str] = None) -> None:
         """Broadcast a structured event to all list subscribers."""
         # Special handling for member removal: kick the user immediately
         if event_type == "member_removed" or event_type == "member_left":
@@ -139,6 +142,7 @@ class ConnectionManager:
                     "data": data,
                 },
             },
+            exclude_user_id=exclude_user_id
         )
 
     async def send_to_user(self, user_id: str, message: dict) -> bool:

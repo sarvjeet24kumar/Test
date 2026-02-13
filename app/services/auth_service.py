@@ -6,16 +6,19 @@ password reset, and password changes.
 """
 
 import hmac
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 from typing import Tuple, Optional
 from uuid import UUID
+import uuid as uuid_pkg
+from zoneinfo import ZoneInfo
 
-from jose import JWTError
+from jose import JWTError, jwt
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, and_
 from fastapi import BackgroundTasks
 
 from app.core.config import settings
+from app.core.time import get_now
 from app.core.security import (
     verify_password,
     create_access_token,
@@ -38,6 +41,7 @@ from app.exceptions import (
 from app.exceptions.base import MiniMartException
 from app.models.user import User
 from app.models.tenant import Tenant
+from app.websocket.manager import manager
 from app.models.token_blacklist import BlacklistedToken
 from app.services.redis_service import RedisService
 from app.services.email_service import EmailService
@@ -49,7 +53,6 @@ from app.core.logging import get_logger
 logger = get_logger(__name__)
 
 
-
 class AuthService:
     """Service for authentication operations."""
 
@@ -57,24 +60,34 @@ class AuthService:
         self.db = db
 
     async def login(
-        self, 
-        email: str, 
-        password: str, 
+        self,
+        email: str,
+        password: str,
         tenant_id: Optional[UUID] = None,
         background_tasks: Optional[BackgroundTasks] = None,
     ) -> LoginResponse:
         """
         Authenticate user and return tokens.
         """
+        email = email.strip().lower()
         # Find user by email and tenant
-        result = await self.db.execute(
-            select(User).where(
-                and_(
-                    User.email == email,
-                    User.tenant_id == tenant_id
+        if not tenant_id:
+
+            result = await self.db.execute(
+                select(User).where(
+                    and_(
+                        User.email == email,
+                        User.tenant_id == tenant_id,
+                        User.role == UserRole.SUPER_ADMIN,
+                    )
                 )
             )
-        )
+        else:
+            result = await self.db.execute(
+                select(User).where(
+                    and_(User.email == email, User.tenant_id == tenant_id)
+                )
+            )
         user = result.scalar_one_or_none()
 
         if not user:
@@ -125,17 +138,18 @@ class AuthService:
         )
 
     async def send_verification_otp(
-        self, 
-        email: str, 
+        self,
+        email: str,
         tenant_id: Optional[UUID] = None,
         background_tasks: Optional[BackgroundTasks] = None,
     ) -> None:
         """
         Send OTP for email verification scoped by tenant.
-        
+
         Silent fail if user not found (prevents email enumeration).
         Raises ALREADY_VERIFIED if user is already verified.
         """
+        email = email.strip().lower()
         # Find user by email and tenant
         result = await self.db.execute(
             select(User).where(
@@ -173,9 +187,7 @@ class AuthService:
         else:
             await EmailService.send_otp_email(email, otp)
 
-    async def verify_email(
-        self, email: str, otp: str, tenant_id: Optional[UUID] = None
-    ) -> bool:
+    async def verify_email(self, email: str, otp: str, tenant_id: UUID) -> bool:
         """
         Verify email with OTP scoped by tenant.
         Uses constant-time comparison for OTP.
@@ -183,12 +195,7 @@ class AuthService:
         """
         # Find user
         result = await self.db.execute(
-            select(User).where(
-                and_(
-                    User.email == email,
-                    User.tenant_id == tenant_id
-                )
-            )
+            select(User).where(and_(User.email == email, User.tenant_id == tenant_id))
         )
         user = result.scalar_one_or_none()
 
@@ -213,8 +220,9 @@ class AuthService:
         if not hmac.compare_digest(stored_otp, otp):
             raise ValidationException("Invalid OTP")
 
-        # Update user's email verification status
+        # Update user's email verification and activation status
         user.is_email_verified = True
+        user.is_active = True
         await self.db.commit()
 
         # Delete OTP from Redis
@@ -235,14 +243,16 @@ class AuthService:
         """
         Register a new user with email verification.
         """
+        email = email.strip().lower()
+        username = username.strip().lower()
+        first_name = first_name.strip()
+        last_name = last_name.strip()
         # Validate password strength
         validate_password_strength(password)
 
         # Verify tenant exists if tenant_id provided
         if tenant_id:
-            result = await self.db.execute(
-                select(Tenant).where(Tenant.id == tenant_id)
-            )
+            result = await self.db.execute(select(Tenant).where(Tenant.id == tenant_id))
             tenant = result.scalar_one_or_none()
             if not tenant:
                 raise NotFoundException("Tenant not found")
@@ -251,12 +261,7 @@ class AuthService:
 
         # Check if email already exists in this tenant
         result = await self.db.execute(
-            select(User).where(
-                and_(
-                    User.email == email,
-                    User.tenant_id == tenant_id
-                )
-            )
+            select(User).where(and_(User.email == email, User.tenant_id == tenant_id))
         )
         if result.scalar_one_or_none():
             raise ConflictException("Email already registered in this tenant")
@@ -264,16 +269,13 @@ class AuthService:
         # Check if username already exists in this tenant
         result = await self.db.execute(
             select(User).where(
-                and_(
-                    User.username == username,
-                    User.tenant_id == tenant_id
-                )
+                and_(User.username == username, User.tenant_id == tenant_id)
             )
         )
         if result.scalar_one_or_none():
-            raise ConflictException("Username already taken in this tenant")
+            raise ConflictException("Username already exist")
 
-        # Create user with is_email_verified=False
+        # Create user with is_email_verified=False and is_active=False
         user = User(
             email=email,
             username=username,
@@ -283,7 +285,7 @@ class AuthService:
             tenant_id=tenant_id,
             role=UserRole.USER,
             is_email_verified=False,
-            is_active=True,
+            is_active=False,
         )
         self.db.add(user)
         await self.db.commit()
@@ -322,7 +324,7 @@ class AuthService:
         access_jti = access_payload.get("jti")
         access_exp = access_payload.get("exp")
         if access_jti and access_exp:
-            ttl = int(access_exp - datetime.now(timezone.utc).timestamp())
+            ttl = int(access_exp - get_now().timestamp())
             if ttl > 0:
                 await RedisService.blacklist_access_token(access_jti, ttl)
 
@@ -330,18 +332,18 @@ class AuthService:
         refresh_jti = refresh_payload.get("jti")
         refresh_exp = refresh_payload.get("exp")
         user_id = refresh_payload.get("sub")
-        
+
         if refresh_jti and refresh_exp:
             result = await self.db.execute(
-                select(BlacklistedToken).where(
-                    BlacklistedToken.token_id == refresh_jti
-                )
+                select(BlacklistedToken).where(BlacklistedToken.token_id == refresh_jti)
             )
             existing = result.scalar_one_or_none()
-            
+
             if not existing:
-                expires_at = datetime.fromtimestamp(refresh_payload["exp"], tz=timezone.utc)
-                
+                expires_at = datetime.fromtimestamp(
+                    refresh_payload["exp"], tz=ZoneInfo(settings.timezone)
+                )
+
                 blacklisted = BlacklistedToken(
                     token_id=refresh_jti,
                     user_id=user_id,
@@ -351,12 +353,9 @@ class AuthService:
                 await self.db.commit()
 
         # Proactive Security: Immediately close all active WebSocket connections for this user
-        from app.websocket.manager import manager
         await manager.disconnect_all_for_user(str(user_id))
 
     async def refresh_tokens(self, refresh_token: str) -> Tuple[str, str]:
-        from jose import jwt
-        from uuid import UUID as UUIDType
 
         try:
             payload = jwt.decode(
@@ -380,7 +379,7 @@ class AuthService:
 
         # Get user
         user_id = payload.get("sub")
-        result = await self.db.execute(select(User).where(User.id == UUIDType(user_id)))
+        result = await self.db.execute(select(User).where(User.id == UUID(user_id)))
         user = result.scalar_one_or_none()
 
         if not user or not user.is_active:
@@ -433,6 +432,7 @@ class AuthService:
         Request password reset. Sends email with reset link.
         Silent fail if user not found (prevent email enumeration).
         """
+        email = email.strip().lower()
         result = await self.db.execute(
             select(User).where(
                 and_(
@@ -511,9 +511,7 @@ class AuthService:
             )
 
         # Get user
-        result = await self.db.execute(
-            select(User).where(User.id == UUID(user_id))
-        )
+        result = await self.db.execute(select(User).where(User.id == UUID(user_id)))
         user = result.scalar_one_or_none()
 
         if not user:

@@ -8,11 +8,12 @@ from datetime import datetime
 from typing import Optional
 from uuid import UUID
 from pydantic import BaseModel, Field, ConfigDict
+from app.schemas.common import NormalizedModel
 
 from app.common.enums import ItemStatus
 
 
-class ItemBase(BaseModel):
+class ItemBase(NormalizedModel):
     """Base item schema."""
 
     name: str = Field(..., min_length=1, max_length=255)
@@ -25,7 +26,7 @@ class ItemCreate(ItemBase):
     pass
 
 
-class ItemUpdate(BaseModel):
+class ItemUpdate(NormalizedModel):
     """Item update schema."""
 
     name: Optional[str] = Field(None, min_length=1, max_length=255)
@@ -33,10 +34,12 @@ class ItemUpdate(BaseModel):
     status: Optional[ItemStatus] = None
 
 
-class ItemResponse(ItemBase):
+class ItemResponse(NormalizedModel):
     """Item response schema."""
 
     id: UUID
+    name: str
+    quantity: int
     shopping_list_id: UUID
     added_by: Optional[UUID]
     added_by_username: Optional[str] = None

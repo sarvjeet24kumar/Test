@@ -6,7 +6,7 @@ Password hashing, JWT token operations, and OTP generation.
 
 import secrets
 import string
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 from typing import Optional, Any, Dict
 from uuid import UUID, uuid4
 
@@ -15,6 +15,7 @@ from argon2 import PasswordHasher
 from argon2.exceptions import VerifyMismatchError
 
 from app.core.config import settings
+from app.core.time import get_now
 
 
 # Password hashing
@@ -55,9 +56,9 @@ def create_access_token(
         Encoded JWT string
     """
     if expires_delta:
-        expire = datetime.now(timezone.utc) + expires_delta
+        expire = get_now() + expires_delta
     else:
-        expire = datetime.now(timezone.utc) + timedelta(
+        expire = get_now() + timedelta(
             minutes=settings.jwt_access_token_expire_minutes
         )
 
@@ -67,7 +68,7 @@ def create_access_token(
         "role": role,
         "email": email,
         "exp": expire,
-        "iat": datetime.now(timezone.utc),
+        "iat": get_now(),
         "jti": str(uuid4()),
         "type": "access",
     }
@@ -92,9 +93,9 @@ def create_refresh_token(
         Encoded JWT string
     """
     if expires_delta:
-        expire = datetime.now(timezone.utc) + expires_delta
+        expire = get_now() + expires_delta
     else:
-        expire = datetime.now(timezone.utc) + timedelta(
+        expire = get_now() + timedelta(
             days=settings.jwt_refresh_token_expire_days
         )
 
@@ -102,7 +103,7 @@ def create_refresh_token(
         "sub": str(user_id),
         "tenant_id": str(tenant_id) if tenant_id else None,
         "exp": expire,
-        "iat": datetime.now(timezone.utc),
+        "iat": get_now(),
         "jti": str(uuid4()),
         "type": "refresh",
     }
@@ -167,9 +168,9 @@ def create_invitation_token(
         Encoded JWT invitation token
     """
     if expires_delta:
-        expire = datetime.now(timezone.utc) + expires_delta
+        expire = get_now() + expires_delta
     else:
-        expire = datetime.now(timezone.utc) + timedelta(
+        expire = get_now() + timedelta(
             hours=settings.invitation_token_expire_hours
         )
 
@@ -180,7 +181,7 @@ def create_invitation_token(
         "tenant_id": str(tenant_id),
         "inviter_id": str(inviter_id),
         "exp": expire,
-        "iat": datetime.now(timezone.utc),
+        "iat": get_now(),
         "jti": str(uuid4()),
     }
 
@@ -227,14 +228,14 @@ def create_password_reset_token(
     Returns:
         Encoded JWT string with jti for single-use tracking
     """
-    expire = datetime.now(timezone.utc) + timedelta(minutes=15)
+    expire = get_now() + timedelta(minutes=15)
 
     payload = {
         "sub": str(user_id),
         "tenant_id": str(tenant_id) if tenant_id else None,
         "type": "password_reset",
         "exp": expire,
-        "iat": datetime.now(timezone.utc),
+        "iat": get_now(),
         "jti": str(uuid4()),
     }
 

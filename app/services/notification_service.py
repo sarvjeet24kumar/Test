@@ -4,7 +4,7 @@ Notification Service
 
 from typing import List, Optional, Any, Dict
 import uuid
-from sqlalchemy import select, and_, update, desc
+from sqlalchemy import select, and_, update, desc, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.notification import Notification
@@ -28,6 +28,7 @@ class NotificationService:
         notification_type: NotificationType,
         payload: Dict[str, Any],
         shopping_list_id: Optional[uuid.UUID] = None,
+        send_websocket: bool = True,
     ) -> Notification:
         """
         Create a notification in the database and dispatch via WebSocket.
@@ -44,22 +45,23 @@ class NotificationService:
         await self.db.refresh(notification)
 
         # Dispatch via WebSocket (real-time)
-        try:
-            await manager.send_to_user(
-                str(user_id),
-                {
-                    "type": "notification",
-                    "payload": {
-                        "id": str(notification.id),
-                        "type": notification.type,
-                        "data": notification.payload,
-                        "shopping_list_id": str(notification.shopping_list_id) if notification.shopping_list_id else None,
-                        "created_at": notification.created_at.isoformat(),
+        if send_websocket:
+            try:
+                await manager.send_to_user(
+                    str(user_id),
+                    {
+                        "type": "notification",
+                        "payload": {
+                            "id": str(notification.id),
+                            "type": notification.type,
+                            "data": notification.payload,
+                            "shopping_list_id": str(notification.shopping_list_id) if notification.shopping_list_id else None,
+                            "created_at": notification.created_at.isoformat(),
+                        },
                     },
-                },
-            )
-        except Exception as e:
-            logger.error(f"Failed to dispatch WebSocket notification: {e}")
+                )
+            except Exception as e:
+                logger.error(f"Failed to dispatch WebSocket notification: {e}")
 
         return notification
 
@@ -97,7 +99,6 @@ class NotificationService:
 
     async def get_unread_count(self, user_id: uuid.UUID) -> int:
         """Get the count of unread notifications for a user."""
-        from sqlalchemy import func
         query = select(func.count(Notification.id)).where(
             and_(Notification.user_id == user_id, Notification.is_read == False)
         )
@@ -153,11 +154,20 @@ class NotificationService:
             if exclude_user_id and user_id == exclude_user_id:
                 continue
             
+            # Check if user is already a subscriber of this list
+            # If they are, they will receive the 'event' broadcast, so we skip the 'notification' packet
+            is_subscriber = False
+            if list_id:
+                list_str = str(list_id)
+                if list_str in manager.list_subscribers:
+                    is_subscriber = str(user_id) in manager.list_subscribers[list_str]
+
             await self.create_notification(
                 user_id=user_id,
                 notification_type=notification_type,
                 payload=payload,
                 shopping_list_id=list_id,
+                send_websocket=not is_subscriber,
             )
             count += 1
             

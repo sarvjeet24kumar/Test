@@ -8,11 +8,12 @@ from datetime import datetime
 from typing import Optional, List
 from uuid import UUID
 from pydantic import BaseModel, Field, ConfigDict
+from app.schemas.common import NormalizedModel
 
 from app.common.constants import MAX_CHAT_MESSAGE_LENGTH
 
 
-class ChatMessageRequest(BaseModel):
+class ChatMessageRequest(NormalizedModel):
     """Schema for sending a chat message."""
 
     message: str = Field(

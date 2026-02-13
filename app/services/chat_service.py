@@ -5,13 +5,15 @@ Handles chat message persistence, membership validation, and real-time broadcast
 """
 
 import json
-from datetime import datetime, timezone
+from datetime import datetime
 from uuid import UUID
 from typing import Optional, List, Dict, Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, and_
 from sqlalchemy.orm import selectinload
+
+from app.core.time import get_now
 
 from app.exceptions import NotFoundException, ForbiddenException, ValidationException
 from app.models.user import User
@@ -221,5 +223,5 @@ class ChatService:
         if not is_sender and not is_owner and not is_tenant_admin:
             raise ForbiddenException("Only the message sender or list owner can delete messages")
 
-        message.deleted_at = datetime.now(timezone.utc)
+        message.deleted_at = get_now()
         await self.db.commit()

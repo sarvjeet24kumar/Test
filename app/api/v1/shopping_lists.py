@@ -2,7 +2,7 @@
 Shopping List Endpoints
 
 CRUD operations for shopping lists, membership management, invitations, and chat.
-Permission matrix enforced via ListService.
+Permission matrix enforced via ShoppingListService and ListMemberService.
 
 NOTE: Item endpoints have been moved to app/api/v1/items.py
 """
@@ -17,7 +17,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.db.session import get_db
 from app.core.dependencies import get_current_verified_user, PaginationParams
 from app.models.user import User
-from app.services.list_service import ListService
+from app.services.shopping_list import ShoppingListService, ListMemberService
 from app.schemas.shopping_list import (
     ShoppingListCreate,
     ShoppingListUpdate,
@@ -59,7 +59,7 @@ async def create_shopping_list(
     Allowed: Tenant Admin, User.
     Blocked: Super Admin.
     """
-    list_service = ListService(db)
+    list_service = ShoppingListService(db)
     return await list_service.create_list(current_user, data)
 
 
@@ -76,7 +76,7 @@ async def list_shopping_lists(
     """
     Get all shopping lists visible to the user.
     """
-    list_service = ListService(db)
+    list_service = ShoppingListService(db)
     items, total = await list_service.get_user_lists(
         current_user, skip=pagination.skip, limit=pagination.size
     )
@@ -105,7 +105,7 @@ async def get_shopping_list(
     """
     Get a shopping list with members and items.
     """
-    list_service = ListService(db)
+    list_service = ShoppingListService(db)
     return await list_service.get_list(list_id, current_user)
 
 
@@ -124,7 +124,7 @@ async def update_shopping_list(
     Update a shopping list.
     Allowed: Tenant Admin, Owner.
     """
-    list_service = ListService(db)
+    list_service = ShoppingListService(db)
     return await list_service.update_list(list_id, current_user, data)
 
 
@@ -137,7 +137,7 @@ async def delete_shopping_list(
     """
     Delete a shopping list.
     """
-    list_service = ListService(db)
+    list_service = ShoppingListService(db)
     await list_service.delete_list(list_id, current_user)
 
 
@@ -158,13 +158,13 @@ async def list_members(
     """
     Get all members of a shopping list.
     """
-    list_service = ListService(db)
-    members, total = await list_service.get_members(
+    member_service = ListMemberService(db)
+    items, total = await member_service.get_members(
         list_id, current_user, skip=pagination.skip, limit=pagination.size
     )
     
     return PaginatedResponse(
-        data=members,
+        data=items,
         total=total,
         page=pagination.page,
         size=pagination.size,
@@ -188,8 +188,8 @@ async def remove_member(
     """
     Remove a member from the shopping list.
     """
-    list_service = ListService(db)
-    await list_service.remove_member(list_id, user_id, current_user)
+    member_service = ListMemberService(db)
+    await member_service.remove_member(list_id, user_id, current_user)
     return MessageResponse(message="Member removed successfully")
 
 
@@ -208,8 +208,8 @@ async def update_member_permissions(
     """
     Update a member's permission flags.
     """
-    list_service = ListService(db)
-    return await list_service.update_member_permissions(
+    member_service = ListMemberService(db)
+    return await member_service.update_member_permissions(
         list_id, user_id, current_user, data
     )
 
@@ -228,8 +228,8 @@ async def leave_list(
     Leave a shopping list.
     Members only. Owner cannot leave their own list.
     """
-    list_service = ListService(db)
-    await list_service.leave_list(list_id, current_user)
+    member_service = ListMemberService(db)
+    await member_service.leave_list(list_id, current_user)
     return MessageResponse(message="Left list successfully")
 
 

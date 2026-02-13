@@ -23,7 +23,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.db.session import get_db
 from app.core.dependencies import get_current_verified_user, PaginationParams
 from app.models.user import User
-from app.services.list_service import ListService
+from app.services.shopping_list import ListItemService
 from app.schemas.item import ItemCreate, ItemUpdate, ItemResponse, ItemStatusUpdate
 from app.schemas.common import PaginatedResponse
 from app.core.logging import get_logger
@@ -48,8 +48,8 @@ async def add_item(
     Add an item to a shopping list.
     Allowed: Tenant Admin, Owner, Member (if can_add_item). Blocked: Super Admin.
     """
-    list_service = ListService(db)
-    return await list_service.add_item(list_id, current_user, data)
+    item_service = ListItemService(db)
+    return await item_service.add_item(list_id, current_user, data)
 
 
 @router.get(
@@ -67,8 +67,8 @@ async def get_items(
     Get all items in a shopping list.
     Allowed: Tenant Admin, Owner, Member (if can_view). Blocked: Super Admin.
     """
-    list_service = ListService(db)
-    items, total = await list_service.get_items(
+    item_service = ListItemService(db)
+    items, total = await item_service.get_items(
         list_id, current_user, skip=pagination.skip, limit=pagination.size
     )
 
@@ -96,8 +96,8 @@ async def get_item(
     Get a specific item from a shopping list.
     Validates item belongs to the list.
     """
-    list_service = ListService(db)
-    return await list_service.get_item(list_id, item_id, current_user)
+    item_service = ListItemService(db)
+    return await item_service.get_item(list_id, item_id, current_user)
 
 
 @router.patch(
@@ -116,8 +116,8 @@ async def update_item(
     Update an item in a shopping list.
     Validates item belongs to the list.
     """
-    list_service = ListService(db)
-    return await list_service.update_item_scoped(list_id, item_id, current_user, data)
+    item_service = ListItemService(db)
+    return await item_service.update_item_scoped(list_id, item_id, current_user, data)
 
 
 @router.patch(
@@ -135,8 +135,9 @@ async def update_item_status(
     """
     Quick update for item status (mark as purchased/pending).
     """
-    list_service = ListService(db)
-    return await list_service.update_item_scoped(
+    item_service = ListItemService(db)
+    from app.schemas.item import ItemUpdate
+    return await item_service.update_item_scoped(
         list_id, item_id, current_user, ItemUpdate(status=data.status)
     )
 
@@ -152,5 +153,5 @@ async def delete_item(
     Delete an item from a shopping list.
     Validates item belongs to the list.
     """
-    list_service = ListService(db)
-    await list_service.delete_item_scoped(list_id, item_id, current_user)
+    item_service = ListItemService(db)
+    await item_service.delete_item_scoped(list_id, item_id, current_user)

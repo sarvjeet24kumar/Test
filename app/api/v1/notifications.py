@@ -14,6 +14,9 @@ from app.models.user import User
 from app.services.notification_service import NotificationService
 from app.schemas.notification import NotificationResponse, NotificationUpdate
 from app.schemas.common import PaginatedResponse, MessageResponse
+from app.models.notification import Notification
+from app.exceptions import NotFoundException
+from sqlalchemy import select, func
 from math import ceil
 
 router = APIRouter()
@@ -43,9 +46,6 @@ async def list_notifications(
     
     # We don't have a specific total count helper in service that returns items + total yet
     # but for notifications we just need the list. Let's do a quick count.
-    from sqlalchemy import select, func
-    from app.models.notification import Notification
-    
     count_query = select(func.count(Notification.id)).where(Notification.user_id == current_user.id)
     if is_read is not None:
         count_query = count_query.where(Notification.is_read == is_read)
@@ -78,7 +78,6 @@ async def mark_notification_read(
     notification_service = NotificationService(db)
     success = await notification_service.mark_as_read(notification_id, current_user.id)
     if not success:
-        from app.exceptions import NotFoundException
         raise NotFoundException("Notification not found or already read")
     
     return MessageResponse(message="Notification marked as read")

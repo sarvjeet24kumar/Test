@@ -27,6 +27,7 @@ class Settings(BaseSettings):
     app_env: str = "development"
     debug: bool = False
     secret_key: str = "change-me-in-production"
+    timezone: str = "Asia/Kolkata"
 
     # Database
     database_url: str = "postgresql+asyncpg://postgres:postgres@localhost:5432/minimart"

@@ -6,6 +6,7 @@ from datetime import datetime
 from typing import Optional, Dict, Any
 from uuid import UUID
 from pydantic import BaseModel, Field, ConfigDict
+from app.schemas.common import NormalizedModel
 
 from app.common.enums import NotificationType
 
@@ -24,13 +25,13 @@ class NotificationResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
-class NotificationUpdate(BaseModel):
+class NotificationUpdate(NormalizedModel):
     """Notification update schema (mostly for marking as read)."""
 
     is_read: bool
 
 
-class NotificationFilter(BaseModel):
+class NotificationFilter(NormalizedModel):
     """Query parameters for filtering notifications."""
 
     is_read: Optional[bool] = None

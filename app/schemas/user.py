@@ -7,12 +7,13 @@ Request and response schemas for user management.
 from datetime import datetime
 from typing import Optional
 from uuid import UUID
-from pydantic import BaseModel, Field, EmailStr, ConfigDict
+from pydantic import Field, EmailStr, ConfigDict
+from app.schemas.common import NormalizedModel
 
 from app.common.enums import UserRole
 
 
-class UserBase(BaseModel):
+class UserBase(NormalizedModel):
     """Base user schema."""
 
     email: EmailStr
@@ -21,19 +22,7 @@ class UserBase(BaseModel):
     last_name: str = Field(..., min_length=1, max_length=100)
 
 
-class UserSignupRequest(UserBase):
-    password: str = Field(..., min_length=8, max_length=128)
 
-class UserResponse(BaseModel):
-    id: UUID
-    email: EmailStr
-    username: str
-    first_name: str
-    last_name: str
-    is_active: bool
-    is_email_verified: bool
-
-    model_config = ConfigDict(from_attributes=True)
     
 class UserCreate(UserBase):
     """User creation schema."""
@@ -42,7 +31,7 @@ class UserCreate(UserBase):
     tenant_id: Optional[UUID] = None
 
 
-class UserUpdate(BaseModel):
+class UserUpdate(NormalizedModel):
     """User update schema."""
 
     username: Optional[str] = Field(None, min_length=3, max_length=100, pattern=r"^[a-zA-Z0-9_]+$")
@@ -52,45 +41,32 @@ class UserUpdate(BaseModel):
     deleted_at: Optional[datetime] = None
 
 
-class UserResponse(UserBase):
-    """User response schema."""
+class UserResponse(NormalizedModel):
+    """Standard user response (id on top, no sensitive status fields)."""
 
     id: UUID
+    email: EmailStr
+    username: str
+    first_name: str
+    last_name: str
     tenant_id: Optional[UUID] = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class UserAdminResponse(UserResponse):
+    """Admin-level user response with status and lifecycle fields."""
+
     role: UserRole
     is_email_verified: bool
     is_active: bool
     deleted_at: Optional[datetime] = None
     created_at: datetime
 
-    model_config = ConfigDict(from_attributes=True)
 
 
-class UserWithTenantResponse(UserResponse):
-    """User response with tenant details."""
 
-    tenant_name: str
-
-
-class UserProfileResponse(BaseModel):
-    """User profile response (self)."""
-
-    id: UUID
-    email: str
-    username: str
-    first_name: str
-    last_name: str
-    tenant_id: Optional[UUID] = None
-    tenant_name: Optional[str] = None
-    role: UserRole
-    is_email_verified: bool
-    deleted_at: Optional[datetime] = None
-    created_at: datetime
-
-    model_config = ConfigDict(from_attributes=True)
-
-
-class ChangePasswordRequest(BaseModel):
+class ChangePasswordRequest(NormalizedModel):
     """Change password request."""
 
     current_password: str = Field(..., min_length=1)

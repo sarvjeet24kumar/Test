@@ -13,6 +13,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from jose import JWTError
+import json as _json
+import uvicorn
+from app.services.chat_service import ChatService
 
 from app.core.config import settings
 from app.db.database import init_db, close_db, engine
@@ -183,9 +186,6 @@ async def chat_websocket_endpoint(
     Send:     {"type": "chat_message", "message": "Hello"}
     Receive:  {"type": "chat_message", "id": "uuid", ...}
     """
-    import json as _json
-    from app.services.chat_service import ChatService
-
     # 1. Authenticate
     try:
         payload = decode_token(token)
@@ -300,7 +300,6 @@ async def chat_websocket_endpoint(
 
 # Run with: uvicorn app.main:app --reload
 if __name__ == "__main__":
-    import uvicorn
     uvicorn.run(
         "app.main:app",
         host="0.0.0.0",

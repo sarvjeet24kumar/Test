@@ -23,6 +23,7 @@ from app.exceptions import (
     NotFoundException,
     CredentialsException,
 )
+from app.exceptions.base import MiniMartException
 from app.models.user import User
 from app.models.tenant import Tenant
 from app.models.shopping_list import ShoppingList
@@ -144,7 +145,6 @@ async def get_current_verified_user(
         MiniMartException: If email is not verified (ACCOUNT_NOT_VERIFIED)
     """
     if not current_user.is_email_verified:
-        from app.exceptions.base import MiniMartException
         raise MiniMartException(
             status_code=403,
             code="ACCOUNT_NOT_VERIFIED",

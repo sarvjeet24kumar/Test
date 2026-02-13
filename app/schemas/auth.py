@@ -7,15 +7,15 @@ Request and response schemas for authentication endpoints.
 from datetime import datetime
 from typing import Optional
 from uuid import UUID
-from pydantic import BaseModel, EmailStr, Field, ConfigDict
+from pydantic import BaseModel, EmailStr, Field, ConfigDict, field_validator
+from app.schemas.common import NormalizedModel
 
 
-class LoginRequest(BaseModel):
+class LoginRequest(NormalizedModel):
     """Login request payload."""
 
     email: EmailStr
     password: str = Field(..., min_length=6, max_length=128)
-
 
 class LoginResponse(BaseModel):
     """Login response with tokens."""
@@ -41,19 +41,20 @@ class TokenPayload(BaseModel):
     type: str = "access"  # access or refresh
 
 
-class RefreshTokenRequest(BaseModel):
+class RefreshTokenRequest(NormalizedModel):
     """Refresh token request."""
 
     refresh_token: str
 
 
-class VerifyEmailRequest(BaseModel):
+class VerifyEmailRequest(NormalizedModel):
     """Email verification request with OTP."""
 
     email: EmailStr
     otp: str = Field(..., min_length=6, max_length=6)
 
-class ResendOtpRequest(BaseModel):
+
+class ResendOtpRequest(NormalizedModel):
     email: EmailStr
 
 class OTPResponse(BaseModel):
@@ -65,13 +66,13 @@ class OTPResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
-class PasswordResetRequest(BaseModel):
+class PasswordResetRequest(NormalizedModel):
     """Password reset request."""
 
     email: EmailStr
 
 
-class PasswordResetConfirm(BaseModel):
+class PasswordResetConfirm(NormalizedModel):
     """Password reset confirmation."""
 
     token: str
@@ -79,7 +80,7 @@ class PasswordResetConfirm(BaseModel):
     confirm_password: str = Field(..., min_length=8, max_length=128)
 
 
-class SignupRequest(BaseModel):
+class SignupRequest(NormalizedModel):
     """User signup request."""
 
     email: EmailStr
@@ -100,7 +101,7 @@ class SignupResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
-class LogoutRequest(BaseModel):
+class LogoutRequest(NormalizedModel):
     """Logout request."""
 
     refresh_token: str

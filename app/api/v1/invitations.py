@@ -14,7 +14,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.db.session import get_db
 from app.core.dependencies import get_current_verified_user, PaginationParams
 from app.models.user import User
-from app.services.invitation_service import InvitationService
+from app.services.invitation import (
+    InvitationManagementService,
+    InvitationActionService,
+)
 from app.schemas.invitation import (
     InvitationAcceptRequest,
     InvitationRejectRequest,
@@ -43,8 +46,8 @@ async def accept_invitation(
     Accept a shopping list invitation.
     Requires authentication. Invitation email must match logged-in user's email.
     """
-    invitation_service = InvitationService(db)
-    await invitation_service.accept_invitation(
+    action_service = InvitationActionService(db)
+    await action_service.accept_invitation(
         data.token, current_user
     )
     return MessageResponse(message="Invitation accepted")
@@ -63,8 +66,8 @@ async def reject_invitation(
     Reject a shopping list invitation.
     Does not require authentication.
     """
-    invitation_service = InvitationService(db)
-    await invitation_service.reject_invitation(data.token)
+    action_service = InvitationActionService(db)
+    await action_service.reject_invitation(data.token)
     return MessageResponse(message="Invitation rejected")
 
 
@@ -82,8 +85,8 @@ async def cancel_invitation(
     Cancel a pending invitation.
     Only the list owner or tenant admin can cancel.
     """
-    invitation_service = InvitationService(db)
-    await invitation_service.cancel_invitation(invite_id, current_user)
+    management_service = InvitationManagementService(db)
+    await management_service.cancel_invitation(invite_id, current_user)
     return MessageResponse(message="Invitation cancelled")
 
 
@@ -102,8 +105,8 @@ async def resend_invitation(
     Resend a pending invitation — rotates token and resets expiry.
     Only the list owner or tenant admin can resend.
     """
-    invitation_service = InvitationService(db)
-    expires_at = await invitation_service.resend_invitation(
+    management_service = InvitationManagementService(db)
+    expires_at = await management_service.resend_invitation(
         invite_id, current_user, background_tasks
     )
     return InviteResponse(
@@ -134,8 +137,8 @@ async def get_my_invites(
     Get all invitations for the current user across all lists.
     Supports filtering by status.
     """
-    invitation_service = InvitationService(db)
-    invites, total = await invitation_service.get_my_invites(
+    management_service = InvitationManagementService(db)
+    invites, total = await management_service.get_my_invites(
         current_user,
         status_filter=status_filter,
         skip=pagination.skip,
@@ -166,8 +169,8 @@ async def invite_member(
     Invite a user to join the shopping list.
     Allowed: Tenant Admin, Owner.
     """
-    invitation_service = InvitationService(db)
-    expires_at = await invitation_service.send_invitation(
+    management_service = InvitationManagementService(db)
+    expires_at = await management_service.send_invitation(
         list_id, data.user_id, current_user, background_tasks
     )
     return InviteResponse(
@@ -195,8 +198,8 @@ async def get_list_invites(
     Get all invitations for a specific shopping list.
     Allowed: Owner, Tenant Admin.
     """
-    invitation_service = InvitationService(db)
-    invites, total = await invitation_service.get_list_invites(
+    management_service = InvitationManagementService(db)
+    invites, total = await management_service.get_list_invites(
         list_id,
         current_user,
         status_filter=status_filter,

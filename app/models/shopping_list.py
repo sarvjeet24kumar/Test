@@ -13,6 +13,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import BaseModel
 from app.common.constants import MAX_LENGTH_NAME
+from app.common.enums import ItemStatus
 
 if TYPE_CHECKING:
     from app.models.tenant import Tenant
@@ -102,14 +103,12 @@ class ShoppingList(BaseModel):
     def pending_count(self) -> int:
         if not self.items:
             return 0
-        from app.common.enums import ItemStatus
         return sum(1 for item in self.items if item.status == ItemStatus.PENDING)
 
     @property
     def purchased_count(self) -> int:
         if not self.items:
             return 0
-        from app.common.enums import ItemStatus
         return sum(1 for item in self.items if item.status == ItemStatus.PURCHASED)
 
     @property

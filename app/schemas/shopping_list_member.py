@@ -8,6 +8,8 @@ from datetime import datetime
 from typing import Optional
 from uuid import UUID
 from pydantic import BaseModel, Field, EmailStr, ConfigDict
+from app.schemas.common import NormalizedModel
+
 
 from app.common.enums import MemberRole
 
@@ -28,7 +30,7 @@ class MemberResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
-class UpdateMemberPermissions(BaseModel):
+class UpdateMemberPermissions(NormalizedModel):
     """Schema for updating member permissions (Owner/Tenant Admin only)."""
 
     can_add_item: Optional[bool] = None

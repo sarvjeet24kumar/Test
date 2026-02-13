@@ -8,11 +8,12 @@ from datetime import datetime
 from typing import Optional
 from uuid import UUID
 from pydantic import BaseModel, EmailStr, ConfigDict
+from app.schemas.common import NormalizedModel
 
 from app.common.enums import MemberRole, InviteStatus
 
 
-class InviteRequest(BaseModel):
+class InviteRequest(NormalizedModel):
     """Invitation request schema."""
 
     user_id: UUID
@@ -25,12 +26,12 @@ class InviteResponse(BaseModel):
     expires_at: datetime
 
 
-class InvitationAcceptRequest(BaseModel):
+class InvitationAcceptRequest(NormalizedModel):
     """Accept invitation request."""
     token: str
 
 
-class InvitationRejectRequest(BaseModel):
+class InvitationRejectRequest(NormalizedModel):
     """Reject invitation request."""
     token: str
 

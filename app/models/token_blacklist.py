@@ -3,6 +3,7 @@ from sqlalchemy import String, DateTime
 from sqlalchemy.orm import Mapped, mapped_column
 from app.models.base import BaseModel
 from app.common.constants import MAX_LENGTH_TOKEN, MAX_LENGTH_UUID_STR
+from app.core.time import get_now
 
 class BlacklistedToken(BaseModel):
     """
@@ -18,4 +19,4 @@ class BlacklistedToken(BaseModel):
     # created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
 
     def is_expired(self) -> bool:
-        return datetime.utcnow() > self.expires_at
+        return get_now() > self.expires_at

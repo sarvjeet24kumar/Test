@@ -4,7 +4,7 @@ User Management Endpoints
 Tenant Admin operations for user management within a tenant.
 """
 
-from typing import Annotated, List
+from typing import Annotated, List, Union
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, status, Query, BackgroundTasks
@@ -21,7 +21,7 @@ from app.models.user import User
 from app.common.enums import UserRole
 from app.services.user_service import UserService
 from math import ceil
-from app.schemas.user import UserCreate, UserUpdate, UserResponse
+from app.schemas.user import UserCreate, UserUpdate, UserResponse, UserAdminResponse
 from app.schemas.common import PaginatedResponse, MessageResponse
 
 router = APIRouter()
@@ -29,7 +29,7 @@ router = APIRouter()
 
 @router.post(
     "",
-    response_model=UserResponse,
+    response_model=UserAdminResponse,
     status_code=status.HTTP_201_CREATED,
 )
 async def create_user(
@@ -64,7 +64,7 @@ async def create_user(
 
 @router.get(
     "",
-    response_model=PaginatedResponse[UserResponse],
+    response_model=PaginatedResponse[UserAdminResponse],
     status_code=status.HTTP_200_OK,
 )
 async def list_users(
@@ -101,7 +101,7 @@ async def list_users(
 
 @router.get(
     "/{user_id}",
-    response_model=UserResponse,
+    response_model=Union[UserAdminResponse, UserResponse],
     status_code=status.HTTP_200_OK,
 )
 async def get_user(
@@ -114,12 +114,15 @@ async def get_user(
     """
     user_service = UserService(db)
     user = await user_service.get_user(user_id, current_user)
-    return user
+
+    if current_user.role in [UserRole.SUPER_ADMIN, UserRole.TENANT_ADMIN]:
+        return UserAdminResponse.model_validate(user)
+    return UserResponse.model_validate(user)
 
 
 @router.patch(
     "/{user_id}",
-    response_model=UserResponse,
+    response_model=Union[UserAdminResponse, UserResponse],
     status_code=status.HTTP_200_OK,
 )
 async def update_user(
@@ -133,7 +136,10 @@ async def update_user(
     """
     user_service = UserService(db)
     user = await user_service.update_user(user_id, current_user, data)
-    return user
+
+    if current_user.role in [UserRole.SUPER_ADMIN, UserRole.TENANT_ADMIN]:
+        return UserAdminResponse.model_validate(user)
+    return UserResponse.model_validate(user)
 
 
 

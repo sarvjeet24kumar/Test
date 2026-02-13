@@ -30,19 +30,17 @@ class TenantService:
     async def create_tenant(self, data: TenantCreate) -> Tenant:
         """
         Create a new tenant.
-        
+
         Args:
             data: Tenant creation data
-        
+
         Returns:
             Created Tenant
         """
         # Check for existing slug
-        result = await self.db.execute(
-            select(Tenant).where(Tenant.slug == data.slug)
-        )
+        result = await self.db.execute(select(Tenant).where(Tenant.slug == data.slug))
         if result.scalar_one_or_none():
-            raise ConflictException(f"Tenant with slug '{data.slug}' already exists")
+            raise ConflictException(f"Slug already exists")
 
         tenant = Tenant(
             name=data.name,
@@ -54,23 +52,20 @@ class TenantService:
         await self.db.refresh(tenant)
         return tenant
 
-
     async def get_tenant(self, tenant_id: UUID) -> Tenant:
         """
         Get a tenant by ID.
-        
+
         Args:
             tenant_id: Tenant UUID
-        
+
         Returns:
             Tenant
-        
+
         Raises:
             NotFoundException: If tenant not found
         """
-        result = await self.db.execute(
-            select(Tenant).where(Tenant.id == tenant_id)
-        )
+        result = await self.db.execute(select(Tenant).where(Tenant.id == tenant_id))
         tenant = result.scalar_one_or_none()
 
         if not tenant:
@@ -83,11 +78,11 @@ class TenantService:
     ) -> tuple[List[Tenant], int]:
         """
         Get all tenants with pagination.
-        
+
         Args:
             skip: Number of records to skip
             limit: Maximum number of records to return
-        
+
         Returns:
             Tuple of (List of Tenants, Total Count)
         """
@@ -96,11 +91,9 @@ class TenantService:
         total = count_result.scalar_one()
 
         # Get paginated items
-        result = await self.db.execute(
-            select(Tenant).offset(skip).limit(limit)
-        )
+        result = await self.db.execute(select(Tenant).offset(skip).limit(limit))
         items = list(result.scalars().all())
-        
+
         return items, total
 
     async def update_tenant(self, tenant_id: UUID, data: TenantUpdate) -> Tenant:
@@ -114,9 +107,7 @@ class TenantService:
                 select(Tenant).where(Tenant.slug == update_data["slug"])
             )
             if result.scalar_one_or_none():
-                raise ConflictException(
-                    f"Tenant with slug '{update_data['slug']}' already exists"
-                )
+                raise ConflictException(f"Slug already exists")
 
         for field, value in update_data.items():
             setattr(tenant, field, value)
@@ -125,17 +116,16 @@ class TenantService:
         await self.db.refresh(tenant)
         return tenant
 
-
     async def delete_tenant(self, tenant_id: UUID) -> Tenant:
         """
         Soft delete a tenant.
-        
+
         Args:
             tenant_id: Tenant UUID
-        
+
         Returns:
             Deleted Tenant
-        
+
         Raises:
             NotFoundException: If tenant not found
             ConflictException: If tenant already deleted
